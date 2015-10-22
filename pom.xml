@@ -11,7 +11,7 @@
 	<packaging>jar</packaging>
 
 	<name>consultant</name>
-	<description>A library to retrieve your application's configuration from Consul, and subscribe to changes.</description>
+	<description>A library to retrieve your service's configuration from Consul, and subscribe to changes.</description>
 	<url>https://github.com/Magnetme/consultant</url>
 
 	<properties>
