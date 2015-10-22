@@ -22,7 +22,7 @@ Alternative you can also define the this identity through environment variables:
 | SERVICE_NAME  | Name of the service | Yes |
 | SERVICE_DC    | Name of the datacenter where the service is running | No |
 | SERVICE_HOST  | The name of the host where this service is running on | No |
-| INSTANCE_NAME | The name of this particular instance of the service | No |
+| SERVICE_INSTANCE | The name of this particular instance of the service | No |
  
 ### Specifying an alternative Consul address
 Consultant defaults Consul's REST API address to `http://localhost:8500`. If you wish to specify an alternative address to Consul's REST API, you can do so by using the `Builder`:
