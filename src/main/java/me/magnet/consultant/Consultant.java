@@ -80,7 +80,10 @@ public class Consultant {
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName) {
-			return identifyAs(serviceName, null, null, null);
+			return identifyAs(serviceName, fromEnvironment("SERVICE_DC"),
+					fromEnvironment("SERVICE_HOST"),
+					Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
+							.orElse(UUID.randomUUID().toString()));
 		}
 
 		/**
@@ -94,7 +97,9 @@ public class Consultant {
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName, String datacenter) {
-			return identifyAs(serviceName, datacenter, null, null);
+			return identifyAs(serviceName, datacenter, fromEnvironment("SERVICE_HOST"),
+					Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
+							.orElse(UUID.randomUUID().toString()));
 		}
 
 		/**
@@ -109,7 +114,9 @@ public class Consultant {
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName, String datacenter, String hostname) {
-			return identifyAs(serviceName, datacenter, hostname, null);
+			return identifyAs(serviceName, datacenter, hostname,
+					Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
+							.orElse(UUID.randomUUID().toString()));
 		}
 
 		/**
