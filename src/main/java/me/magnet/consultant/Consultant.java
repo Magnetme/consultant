@@ -5,8 +5,12 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -14,8 +18,12 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
-import com.google.common.collect.Sets.SetView;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
@@ -36,12 +44,14 @@ public class Consultant {
 		private ScheduledExecutorService executor;
 		private String host;
 		private ServiceIdentifier id;
-		private ConfigListener listener;
 		private ConfigValidator validator;
 		private CloseableHttpClient http;
+		private final SetMultimap<String, SettingListener> settingListeners;
+		private final Set<ConfigListener> configListeners;
 
 		private Builder() {
-			// Prevent instantiation.
+			this.settingListeners = HashMultimap.create();
+			this.configListeners = Sets.newHashSet();
 		}
 
 		/**
@@ -151,14 +161,25 @@ public class Consultant {
 		}
 
 		/**
-		 * Specifies the callback listener which is notified of whenever a new and valid configuration is detected
+		 * Specifies a callback listener which is notified of whenever a new and valid configuration is detected
 		 * in Consul.
 		 *
 		 * @param listener The listener to call when a new valid configuration is detected.
 		 * @return The Builder instance.
 		 */
 		public Builder onValidConfig(ConfigListener listener) {
-			this.listener = listener;
+			this.configListeners.add(listener);
+			return this;
+		}
+
+		/**
+		 * Specifies a callback listener which is notified of whenever the specified setting is updated.
+		 *
+		 * @param listener The listener to call when the specified setting is updated.
+		 * @return The Builder instance.
+		 */
+		public Builder onSettingUpdate(String key, SettingListener listener) {
+			this.settingListeners.put(key, listener);
 			return this;
 		}
 
@@ -213,7 +234,7 @@ public class Consultant {
 								.orElse(UUID.randomUUID().toString()));
 			}
 
-			Consultant consultant = new Consultant(executor, host, id, listener, validator, http);
+			Consultant consultant = new Consultant(executor, host, id, settingListeners, configListeners, validator, http);
 			consultant.init();
 
 			if (!executorSpecified) {
@@ -250,15 +271,19 @@ public class Consultant {
 	private final String host;
 	private final ServiceIdentifier id;
 	private final ObjectMapper mapper;
-	private final ConfigListener listener;
 	private final ConfigValidator validator;
 	private final Properties validated;
 
-	private Consultant(ScheduledExecutorService executor, String host, ServiceIdentifier identifier,
-			ConfigListener listener, ConfigValidator validator, CloseableHttpClient http) {
+	private final Multimap<String, SettingListener> settingListeners;
+	private final Set<ConfigListener> configListeners;
 
+	private Consultant(ScheduledExecutorService executor, String host, ServiceIdentifier identifier,
+			SetMultimap<String, SettingListener> settingListeners, Set<ConfigListener> configListeners,
+			ConfigValidator validator, CloseableHttpClient http) {
+
+		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
+		this.configListeners = Sets.newConcurrentHashSet(configListeners);
 		this.mapper = new ObjectMapper();
-		this.listener = listener;
 		this.validator = validator;
 		this.executor = executor;
 		this.host = host;
@@ -295,15 +320,40 @@ public class Consultant {
 		}
 	}
 
+	public void addConfigListener(ConfigListener listener) {
+		configListeners.add(listener);
+	}
+
+	public boolean removeConfigListener(ConfigListener listener) {
+		return configListeners.remove(listener);
+	}
+
+	public void addSettingListener(String key, SettingListener listener) {
+		settingListeners.put(key, listener);
+	}
+
+	public boolean removeSettingListener(String key, SettingListener listener) {
+		return settingListeners.remove(key, listener);
+	}
+
 	private void updateValidatedConfig(Properties newConfig) {
-		SetView<String> added = Sets.difference(newConfig.stringPropertyNames(), validated.stringPropertyNames());
-		SetView<String> removed = Sets.difference(validated.stringPropertyNames(), newConfig.stringPropertyNames());
+		Map<String, Pair<String, String>> changes = PropertiesUtil.sync(newConfig, validated);
 
-		added.forEach(key -> validated.setProperty(key, newConfig.getProperty(key)));
-		removed.forEach(validated::remove);
-
-		if (listener != null) {
+		for (ConfigListener listener : configListeners) {
 			listener.onConfigUpdate(validated);
+		}
+
+		for (Entry<String, Pair<String, String>> entry : changes.entrySet()) {
+			String key = entry.getKey();
+			Collection<SettingListener> listeners = settingListeners.get(key);
+			if (listeners == null || listeners.isEmpty()) {
+				continue;
+			}
+
+			for (SettingListener listener : listeners) {
+				Pair<String, String> change = entry.getValue();
+				listener.onSettingUpdate(key, change.getLeft(), change.getRight());
+			}
 		}
 	}
 
