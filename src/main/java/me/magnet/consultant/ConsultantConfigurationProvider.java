@@ -52,14 +52,14 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 	}
 
 	@Override
-	public Property<Boolean> getBooleanProperty(ConfigurationKey configurationKey, Boolean aBoolean) {
+	public Property<Boolean> getBooleanProperty(ConfigurationKey configurationKey, Boolean defaultValue) {
 		return new Property<Boolean>() {
 			@Override
 			public Boolean get() {
 				String rawKey = configurationKey.getRawKey();
 				String value = consultant.getProperties().getProperty(rawKey);
 				if (isNullOrEmpty(value)) {
-					return aBoolean;
+					return defaultValue;
 				}
 				return Boolean.parseBoolean(value);
 			}
@@ -67,7 +67,7 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 	}
 
 	@Override
-	public Property<Integer> getIntegerProperty(ConfigurationKey configurationKey, Integer integer) {
+	public Property<Integer> getIntegerProperty(ConfigurationKey configurationKey, Integer defaultValue) {
 		return new Property<Integer>() {
 			@Override
 			public Integer get() {
@@ -75,20 +75,20 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 				try {
 					String value = consultant.getProperties().getProperty(rawKey);
 					if (isNullOrEmpty(value)) {
-						return integer;
+						return defaultValue;
 					}
 					return Integer.parseInt(value);
 				}
 				catch (RuntimeException e) {
 					log.error("Failed to parse integer: " + rawKey + ": {}", e.getMessage(), e);
-					return integer;
+					return defaultValue;
 				}
 			}
 		};
 	}
 
 	@Override
-	public Property<Long> getLongProperty(ConfigurationKey configurationKey, Long aLong) {
+	public Property<Long> getLongProperty(ConfigurationKey configurationKey, Long defaultValue) {
 		return new Property<Long>() {
 			@Override
 			public Long get() {
@@ -96,20 +96,20 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 				try {
 					String value = consultant.getProperties().getProperty(rawKey);
 					if (isNullOrEmpty(value)) {
-						return aLong;
+						return defaultValue;
 					}
 					return Long.parseLong(value);
 				}
 				catch (RuntimeException e) {
 					log.error("Failed to parse long: " + rawKey + ": {}", e.getMessage(), e);
-					return aLong;
+					return defaultValue;
 				}
 			}
 		};
 	}
 
 	@Override
-	public Property<Double> getDoubleProperty(ConfigurationKey configurationKey, Double aDouble) {
+	public Property<Double> getDoubleProperty(ConfigurationKey configurationKey, Double defaultValue) {
 		return new Property<Double>() {
 			@Override
 			public Double get() {
@@ -117,27 +117,27 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 				try {
 					String value = consultant.getProperties().getProperty(rawKey);
 					if (isNullOrEmpty(value)) {
-						return aDouble;
+						return defaultValue;
 					}
 					return Double.parseDouble(value);
 				}
 				catch (RuntimeException e) {
 					log.error("Failed to parse double: " + rawKey + ": {}", e.getMessage(), e);
-					return aDouble;
+					return defaultValue;
 				}
 			}
 		};
 	}
 
 	@Override
-	public Property<String> getStringProperty(ConfigurationKey configurationKey, String s) {
+	public Property<String> getStringProperty(ConfigurationKey configurationKey, String defaultValue) {
 		return new Property<String>() {
 			@Override
 			public String get() {
 				String rawKey = configurationKey.getRawKey();
 				String value = consultant.getProperties().getProperty(rawKey);
 				if (value == null) {
-					return s;
+					return defaultValue;
 				}
 				return value;
 			}
@@ -145,7 +145,7 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 	}
 
 	@Override
-	public Property<Date> getDateProperty(ConfigurationKey configurationKey, Date date) {
+	public Property<Date> getDateProperty(ConfigurationKey configurationKey, Date defaultValue) {
 		return new Property<Date>() {
 			@Override
 			public Date get() {
@@ -153,16 +153,20 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 				try {
 					String value = consultant.getProperties().getProperty(rawKey);
 					if (isNullOrEmpty(value)) {
-						return date;
+						return defaultValue;
 					}
 					return dateFormat.parse(value);
 				}
 				catch (RuntimeException | ParseException e) {
 					log.error("Failed to parse date: " + rawKey + ": {}", e.getMessage(), e);
-					return date;
+					return defaultValue;
 				}
 			}
 		};
 	}
 
+	@Override
+	public boolean has(ConfigurationKey key) {
+		return consultant.getProperties().containsKey(key.getRawKey());
+	}
 }

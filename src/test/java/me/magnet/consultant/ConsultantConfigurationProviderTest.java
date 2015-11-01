@@ -52,6 +52,13 @@ public class ConsultantConfigurationProviderTest {
 	}
 
 	@Test(timeout = 5_000)
+	public void verifyLoadingStringIsPresentWhenRequested() throws Exception {
+		createConsultant(ImmutableMap.of("config/oauth/some.key", "some-value"));
+		ConsultantConfigurationProvider provider = new ConsultantConfigurationProvider(consultant);
+		assertTrue(provider.has(CONFIGURATION_KEY));
+	}
+
+	@Test(timeout = 5_000)
 	public void verifyFailingToLoadStringPropertyReturnsDefault() throws Exception {
 		createConsultant(ImmutableMap.of("config/oauth/some.other.key", "true"));
 		ConsultantConfigurationProvider provider = new ConsultantConfigurationProvider(consultant);
