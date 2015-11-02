@@ -47,21 +47,34 @@ public class ServiceIdentifier {
 		return instance;
 	}
 
-	public boolean appliesTo(ServiceIdentifier mask) {
-		checkNotNull(mask, "You must specify a 'mask'!");
+	public boolean appliesTo(ServiceIdentifier serviceIdentifier) {
+		checkNotNull(serviceIdentifier, "You must specify a 'serviceIdentifier'!");
 
-		if (!mask.getServiceName().equals(getServiceName())) {
+		if (!getServiceName().equals(serviceIdentifier.getServiceName())) {
 			return false;
 		}
-		else if (mask.getDatacenter().isPresent() && (getDatacenter().isPresent() && !mask.getDatacenter().equals(getDatacenter()))) {
+		else if (!matches(getDatacenter(), serviceIdentifier.getDatacenter())) {
 			return false;
 		}
-		else if (mask.getHostName().isPresent() && (getHostName().isPresent() && !mask.getHostName().equals(getHostName()))) {
+		else if (!matches(getHostName(), serviceIdentifier.getHostName())) {
 			return false;
 		}
-		else if (mask.getInstance().isPresent() && (getInstance().isPresent() && !mask.getInstance().equals(getInstance()))) {
+		else if (!matches(getInstance(), serviceIdentifier.getInstance())) {
 			return false;
 		}
+		return true;
+	}
+
+	private <T> boolean matches(Optional<T> left, Optional<T> right) {
+		if (left.isPresent() && right.isPresent()) {
+			// Both values are set, they must match.
+			return left.get().equals(right.get());
+		}
+		else if (left.isPresent()) {
+			// Only the matching value is set, accept nothing.
+			return false;
+		}
+		// Either the matching value is not set so accept everything.
 		return true;
 	}
 

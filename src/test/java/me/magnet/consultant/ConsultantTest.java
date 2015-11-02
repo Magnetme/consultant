@@ -266,4 +266,60 @@ public class ConsultantTest {
 		assertFalse(consultant.removeSettingListener("some-key", listener));
 	}
 
+	@Test(timeout = 5_000)
+	public void verifyThatIrrelevantOverridesAreIgnored() throws Exception {
+		CloseableHttpResponse response1 = mock(CloseableHttpResponse.class);
+		when(response1.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+		when(response1.getStatusLine()).thenReturn(createStatus(200, "OK"));
+		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/[dc=test].some.key", "some-value")));
+
+		CloseableHttpResponse response2 = mock(CloseableHttpResponse.class);
+		when(response2.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
+		when(response2.getStatusLine()).thenReturn(createStatus(200, "OK"));
+		when(response2.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-other-value")));
+
+		when(http.execute(any())).thenReturn(response1, response2);
+		SettableFuture<Pair<String, String>> future = SettableFuture.create();
+
+		consultant = Consultant.builder()
+				.usingHttpClient(http)
+				.withConsulHost("http://localhost")
+				.identifyAs("oauth")
+				.onSettingUpdate("some.key", (key, oldValue, newValue) -> future.set(Pair.of(key, newValue)))
+				.build();
+
+		Pair<String, String> expected = Pair.of("some.key", "some-other-value");
+		assertEquals(expected, future.get(2_000, TimeUnit.MILLISECONDS));
+	}
+
+	@Test(timeout = 5_000)
+	public void verifyThatRelevantOverridesAreProcessed() throws Exception {
+		CloseableHttpResponse response1 = mock(CloseableHttpResponse.class);
+		when(response1.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+		when(response1.getStatusLine()).thenReturn(createStatus(200, "OK"));
+		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+
+		CloseableHttpResponse response2 = mock(CloseableHttpResponse.class);
+		when(response2.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
+		when(response2.getStatusLine()).thenReturn(createStatus(200, "OK"));
+		when(response2.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/[dc=eu-central].some.key", "some-other-value")));
+
+		when(http.execute(any())).thenReturn(response1, response2);
+		SettableFuture<Pair<String, String>> future = SettableFuture.create();
+
+		consultant = Consultant.builder()
+				.usingHttpClient(http)
+				.withConsulHost("http://localhost")
+				.identifyAs("oauth", "eu-central")
+				.onSettingUpdate("some.key", (key, oldValue, newValue) -> {
+					if (oldValue != null) {
+						future.set(Pair.of(key, newValue));
+					}
+				})
+				.build();
+
+		Pair<String, String> expected = Pair.of("some.key", "some-other-value");
+		assertEquals(expected, future.get(2_000, TimeUnit.MILLISECONDS));
+	}
+
 }

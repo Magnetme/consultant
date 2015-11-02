@@ -71,7 +71,7 @@ public class ServiceIdentifierTest {
 		ServiceIdentifier id1 = new ServiceIdentifier("oauth", null, null, null);
 		ServiceIdentifier id2 = new ServiceIdentifier("oauth", "eu-central", "web-1", "master");
 
-		assertTrue(id2.appliesTo(id1));
+		assertFalse(id2.appliesTo(id1));
 		assertTrue(id1.appliesTo(id2));
 	}
 
@@ -89,7 +89,7 @@ public class ServiceIdentifierTest {
 		ServiceIdentifier id1 = new ServiceIdentifier("oauth", "eu-central", null, null);
 		ServiceIdentifier id2 = new ServiceIdentifier("oauth", "eu-central", "web-1", "master");
 
-		assertTrue(id2.appliesTo(id1));
+		assertFalse(id2.appliesTo(id1));
 		assertTrue(id1.appliesTo(id2));
 	}
 
@@ -107,7 +107,7 @@ public class ServiceIdentifierTest {
 		ServiceIdentifier id1 = new ServiceIdentifier("oauth", null, "web-1", null);
 		ServiceIdentifier id2 = new ServiceIdentifier("oauth", "eu-central", "web-1", "master");
 
-		assertTrue(id2.appliesTo(id1));
+		assertFalse(id2.appliesTo(id1));
 		assertTrue(id1.appliesTo(id2));
 	}
 
@@ -125,7 +125,7 @@ public class ServiceIdentifierTest {
 		ServiceIdentifier id1 = new ServiceIdentifier("oauth", null, null, "master");
 		ServiceIdentifier id2 = new ServiceIdentifier("oauth", "eu-central", "web-1", "master");
 
-		assertTrue(id2.appliesTo(id1));
+		assertFalse(id2.appliesTo(id1));
 		assertTrue(id1.appliesTo(id2));
 	}
 
