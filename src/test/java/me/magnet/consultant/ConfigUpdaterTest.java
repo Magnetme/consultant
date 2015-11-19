@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.SettableFuture;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.entity.StringEntity;
@@ -29,6 +30,7 @@ import org.apache.http.message.BasicHeader;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
 
 public class ConfigUpdaterTest {
 
@@ -92,6 +94,24 @@ public class ConfigUpdaterTest {
 
 		latch.await();
 		assertEquals("some-other-value", properties.get().getProperty("some.key"));
+	}
+
+	@Test(timeout = 5_000)
+	public void verifyFolderIsIgnored() throws Exception {
+		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/", "some-value",
+				"config/oauth/some.key", "some-value")));
+
+		when(http.execute(any())).thenReturn(response);
+
+		SettableFuture<Properties> future = SettableFuture.create();
+		ConfigUpdater updater = new ConfigUpdater(executor, http, null, null, id, objectMapper, null, future::set);
+		updater.run();
+
+		Properties properties = future.get();
+		assertEquals(properties.keySet(), Sets.newHashSet("some.key"));
 	}
 
 	@Test(timeout = 5_000, expected = TimeoutException.class)
