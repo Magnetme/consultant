@@ -136,7 +136,7 @@ class ConfigUpdater implements Runnable {
 
 		for (KeyValueEntry entry : entries) {
 			Path path = PathParser.parse(PREFIX, entry.getKey());
-			if (path == null) {
+			if (path == null || path.getKey() == null) {
 				continue;
 			}
 
