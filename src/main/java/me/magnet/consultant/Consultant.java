@@ -5,7 +5,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -16,6 +19,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
@@ -24,6 +28,11 @@ import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
@@ -35,6 +44,9 @@ import org.slf4j.LoggerFactory;
  * time subscribe to changes to that configuration.
  */
 public class Consultant {
+
+	private static final String LOCALHOST = "127.0.0.1";
+	private static final int HEALTH_CHECK_INTERVAL = 10;
 
 	/**
 	 * Allows you to build a custom Consultant object.
@@ -316,8 +328,87 @@ public class Consultant {
 			Thread.currentThread().interrupt();
 		}
 		catch (ExecutionException e) {
-			throw new RuntimeException(e.getCause());
+			throw new ConsultantException(e.getCause());
 		}
+	}
+
+	public void registerService(int port) {
+		String url = host + "/v1/agent/service/register";
+
+		try {
+			String serviceId = null;
+			String serviceName = id.getServiceName();
+			Check check = new Check("http://" + LOCALHOST + ":" + port + "/_health", HEALTH_CHECK_INTERVAL);
+			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, LOCALHOST, port, check);
+			String serialized = mapper.writeValueAsString(registration);
+
+			HttpPut request = new HttpPut(url);
+			request.setEntity(new StringEntity(serialized));
+			request.setHeader("User-Agent", "Consultant");
+			try (CloseableHttpResponse response = http.execute(request)) {
+				int statusCode = response.getStatusLine().getStatusCode();
+				if (statusCode >= 200 && statusCode < 300) {
+					return;
+				}
+				log.error("Could not register service, status: " + statusCode);
+				throw new ConsultantException("Could not register service. Consul returned: " + statusCode);
+			}
+		}
+		catch (IOException | RuntimeException e) {
+			log.error("Could not register service!", e);
+			throw new ConsultantException(e);
+		}
+	}
+
+	public void deregisterService() {
+		String serviceId = id.getInstance().get();
+		String url = host + "/v1/agent/service/deregister/" + serviceId;
+
+		HttpDelete request = new HttpDelete(url);
+		request.setHeader("User-Agent", "Consultant");
+		try (CloseableHttpResponse response = http.execute(request)) {
+			int statusCode = response.getStatusLine().getStatusCode();
+			if (statusCode >= 200 && statusCode < 300) {
+				return;
+			}
+			log.error("Could not deregister service, status: " + statusCode);
+			throw new ConsultantException("Could not deregister service. Consul returned: " + statusCode);
+		}
+		catch (IOException | RuntimeException e) {
+			log.error("Could not deregister service!", e);
+			throw new ConsultantException(e);
+		}
+	}
+
+	public List<Service> list(String serviceName) {
+		String url = host + "/v1/catalog/service/" + serviceName;
+
+		HttpGet request = new HttpGet(url);
+		request.setHeader("User-Agent", "Consultant");
+		try (CloseableHttpResponse response = http.execute(request)) {
+			int statusCode = response.getStatusLine().getStatusCode();
+			if (statusCode >= 200 && statusCode < 300) {
+				InputStream content = response.getEntity().getContent();
+				return mapper.readValue(content, new TypeReference<List<Service>>() {});
+			}
+			log.error("Could not locate service: " + serviceName + ", status: " + statusCode);
+			throw new ConsultantException("Could not locate service: " + serviceName + ". Consul returned: " + statusCode);
+		}
+		catch (IOException | RuntimeException e) {
+			log.error("Could not locate service: " + serviceName);
+			throw new ConsultantException(e);
+		}
+	}
+
+	public Optional<InetSocketAddress> locate(String serviceName) {
+		return list(serviceName).stream()
+				.findFirst()
+				.map(service -> {
+					String address = Optional.ofNullable(service.getServiceAddress())
+							.orElse(service.getAddress());
+
+					return new InetSocketAddress(address, service.getServicePort());
+				});
 	}
 
 	public void addConfigListener(ConfigListener listener) {
