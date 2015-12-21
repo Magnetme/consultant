@@ -279,9 +279,9 @@ public class Consultant {
 			}
 
 			Consultant consultant = new Consultant(executor, host, id, settingListeners, configListeners, validator,
-					http, pullConfig, properties);
+					http, pullConfig);
 
-			consultant.init();
+			consultant.init(properties);
 
 			if (!executorSpecified) {
 				Runtime.getRuntime().addShutdownHook(new Thread(consultant::shutdown));
@@ -327,7 +327,7 @@ public class Consultant {
 
 	private Consultant(ScheduledExecutorService executor, String host, ServiceIdentifier identifier,
 			SetMultimap<String, SettingListener> settingListeners, Set<ConfigListener> configListeners,
-			ConfigValidator validator, CloseableHttpClient http, boolean pullConfig, Properties properties) {
+			ConfigValidator validator, CloseableHttpClient http, boolean pullConfig) {
 
 		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
@@ -338,11 +338,12 @@ public class Consultant {
 		this.host = host;
 		this.id = identifier;
 		this.pullConfig = pullConfig;
-		this.validated = properties;
+		this.validated = new Properties();
 		this.http = http;
 	}
 
-	private void init() {
+	private void init(Properties initProperties) {
+		updateValidatedConfig(initProperties);
 		if (!pullConfig) {
 			return;
 		}
@@ -484,7 +485,10 @@ public class Consultant {
 
 	private void updateValidatedConfig(Properties newConfig) {
 		Map<String, Pair<String, String>> changes = PropertiesUtil.sync(newConfig, validated);
-
+		if (changes.isEmpty()) {
+			return;
+		}
+		
 		for (ConfigListener listener : configListeners) {
 			listener.onConfigUpdate(validated);
 		}
