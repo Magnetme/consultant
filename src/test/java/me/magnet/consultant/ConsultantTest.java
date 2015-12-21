@@ -38,7 +38,9 @@ public class ConsultantTest {
 
 	@After
 	public void tearDown() {
-		consultant.shutdown();
+		if (consultant != null) {
+			consultant.shutdown();
+		}
 	}
 
 	@Test(timeout = 5_000)
@@ -320,6 +322,59 @@ public class ConsultantTest {
 
 		Pair<String, String> expected = Pair.of("some.key", "some-other-value");
 		assertEquals(expected, future.get(2_000, TimeUnit.MILLISECONDS));
+	}
+
+	@Test(timeout = 5_000)
+	public void verifyThatSpecifyingNoConfigPullDoesNotUpdateConfig() throws Exception {
+		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+
+		when(http.execute(any())).thenReturn(response);
+		CountDownLatch latch = new CountDownLatch(1);
+
+		consultant = Consultant.builder()
+				.usingHttpClient(http)
+				.pullConfigFromConsul(false)
+				.withConsulHost("http://localhost")
+				.identifyAs("oauth", "eu-central")
+				.onSettingUpdate("some.key", (key, oldValue, newValue) -> {
+					latch.countDown();
+				})
+				.build();
+
+		assertFalse(latch.await(4, TimeUnit.SECONDS));
+	}
+
+	@Test(timeout = 5_000)
+	public void testSpecifyingCustomProperties() throws Exception {
+		Properties properties = new Properties();
+		properties.setProperty("some.key", "some-value");
+
+		consultant = Consultant.builder()
+				.usingHttpClient(http)
+				.pullConfigFromConsul(false)
+				.startWith(properties)
+				.withConsulHost("http://localhost")
+				.identifyAs("oauth", "eu-central")
+				.build();
+
+		Properties expected = new Properties();
+		expected.setProperty("some.key", "some-value");
+
+		assertEquals(expected, consultant.getProperties());
+	}
+
+	@Test(expected = IllegalArgumentException.class)
+	public void verifyThatSpecifyingNullForCustomPropertiesThrowsException() throws Exception {
+		consultant = Consultant.builder()
+				.usingHttpClient(http)
+				.pullConfigFromConsul(false)
+				.startWith(null)
+				.withConsulHost("http://localhost")
+				.identifyAs("oauth", "eu-central")
+				.build();
 	}
 
 }

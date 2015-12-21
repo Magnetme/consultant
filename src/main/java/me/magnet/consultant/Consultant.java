@@ -60,12 +60,16 @@ public class Consultant {
 		private ServiceIdentifier id;
 		private ConfigValidator validator;
 		private CloseableHttpClient http;
+		private Properties properties;
+		private boolean pullConfig;
 		private final SetMultimap<String, SettingListener> settingListeners;
 		private final Set<ConfigListener> configListeners;
 
 		private Builder() {
 			this.settingListeners = HashMultimap.create();
 			this.configListeners = Sets.newHashSet();
+			this.properties = new Properties();
+			this.pullConfig = true;
 		}
 
 		/**
@@ -210,6 +214,32 @@ public class Consultant {
 		}
 
 		/**
+		 * Specifies that Consultant should or should not fetch configuration from Consul. By default this is set to
+		 * true, but it can be useful to set this to false for testing.
+		 *
+		 * @param pullConfig True if configuration should be retrieved from Consul, or false if it should not.
+		 * @return The Builder instance.
+		 */
+		public Builder pullConfigFromConsul(boolean pullConfig) {
+			this.pullConfig = pullConfig;
+			return this;
+		}
+
+		/**
+		 * Ensures that Consultant starts out with a default Properties object. This object will be updated if
+		 * Consultant pulls configuration from Consul. By default Consultant will start out with an empty Properties
+		 * object.
+		 *
+		 * @param properties The Properties object to start Consultant with.
+		 * @return The Builder instance.
+		 */
+		public Builder startWith(Properties properties) {
+			checkArgument(properties != null, "You must specify a non-null Properties object!");
+			this.properties = properties;
+			return this;
+		}
+
+		/**
 		 * Builds a new instance of the Consultant class using the specified arguments.
 		 *
 		 * @return The constructed Consultant object.
@@ -249,9 +279,9 @@ public class Consultant {
 			}
 
 			Consultant consultant = new Consultant(executor, host, id, settingListeners, configListeners, validator,
-					http);
+					http, pullConfig);
 
-			consultant.init();
+			consultant.init(properties);
 
 			if (!executorSpecified) {
 				Runtime.getRuntime().addShutdownHook(new Thread(consultant::shutdown));
@@ -290,13 +320,14 @@ public class Consultant {
 	private final ObjectMapper mapper;
 	private final ConfigValidator validator;
 	private final Properties validated;
+	private final boolean pullConfig;
 
 	private final Multimap<String, SettingListener> settingListeners;
 	private final Set<ConfigListener> configListeners;
 
 	private Consultant(ScheduledExecutorService executor, String host, ServiceIdentifier identifier,
 			SetMultimap<String, SettingListener> settingListeners, Set<ConfigListener> configListeners,
-			ConfigValidator validator, CloseableHttpClient http) {
+			ConfigValidator validator, CloseableHttpClient http, boolean pullConfig) {
 
 		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
@@ -306,11 +337,17 @@ public class Consultant {
 		this.executor = executor;
 		this.host = host;
 		this.id = identifier;
+		this.pullConfig = pullConfig;
 		this.validated = new Properties();
 		this.http = http;
 	}
 
-	private void init() {
+	private void init(Properties initProperties) {
+		updateValidatedConfig(initProperties);
+		if (!pullConfig) {
+			return;
+		}
+
 		log.info("Fetching initial configuration from Consul...");
 		ConfigUpdater poller = new ConfigUpdater(executor, http, host, null, id, mapper, null, (properties) -> {
 			if (validator == null) {
@@ -448,7 +485,10 @@ public class Consultant {
 
 	private void updateValidatedConfig(Properties newConfig) {
 		Map<String, Pair<String, String>> changes = PropertiesUtil.sync(newConfig, validated);
-
+		if (changes.isEmpty()) {
+			return;
+		}
+		
 		for (ConfigListener listener : configListeners) {
 			listener.onConfigUpdate(validated);
 		}
@@ -471,7 +511,10 @@ public class Consultant {
 	 * Tears any outstanding resources down.
 	 */
 	public void shutdown() {
-		executor.shutdownNow();
+		if (pullConfig) {
+			executor.shutdownNow();
+		}
+
 		try {
 			try {
 				deregisterService();
