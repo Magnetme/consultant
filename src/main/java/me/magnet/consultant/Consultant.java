@@ -6,6 +6,7 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.List;
@@ -18,10 +19,12 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
@@ -45,7 +48,6 @@ import org.slf4j.LoggerFactory;
  */
 public class Consultant {
 
-	private static final String LOCALHOST = "127.0.0.1";
 	private static final int HEALTH_CHECK_INTERVAL = 10;
 
 	/**
@@ -246,7 +248,9 @@ public class Consultant {
 								.orElse(UUID.randomUUID().toString()));
 			}
 
-			Consultant consultant = new Consultant(executor, host, id, settingListeners, configListeners, validator, http);
+			Consultant consultant = new Consultant(executor, host, id, settingListeners, configListeners, validator,
+					http);
+
 			consultant.init();
 
 			if (!executorSpecified) {
@@ -278,6 +282,7 @@ public class Consultant {
 
 	private static Logger log = LoggerFactory.getLogger(Consultant.class);
 
+	private final AtomicBoolean registered;
 	private final CloseableHttpClient http;
 	private final ScheduledExecutorService executor;
 	private final String host;
@@ -293,6 +298,7 @@ public class Consultant {
 			SetMultimap<String, SettingListener> settingListeners, Set<ConfigListener> configListeners,
 			ConfigValidator validator, CloseableHttpClient http) {
 
+		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
 		this.configListeners = Sets.newConcurrentHashSet(configListeners);
 		this.mapper = new ObjectMapper();
@@ -333,13 +339,19 @@ public class Consultant {
 	}
 
 	public void registerService(int port) {
+		if (!registered.compareAndSet(false, true)) {
+			return;
+		}
+
 		String url = host + "/v1/agent/service/register";
+		log.info("Registering service with Consul...");
 
 		try {
-			String serviceId = null;
+			String serviceId = id.getInstance().get();
 			String serviceName = id.getServiceName();
-			Check check = new Check("http://" + LOCALHOST + ":" + port + "/_health", HEALTH_CHECK_INTERVAL);
-			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, LOCALHOST, port, check);
+			String serviceHost = id.getHostName().orElse(InetAddress.getLoopbackAddress().getHostAddress());
+			Check check = new Check("http://" + serviceHost + ":" + port + "/_health", HEALTH_CHECK_INTERVAL);
+			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, serviceHost, port, check);
 			String serialized = mapper.writeValueAsString(registration);
 
 			HttpPut request = new HttpPut(url);
@@ -355,14 +367,20 @@ public class Consultant {
 			}
 		}
 		catch (IOException | RuntimeException e) {
+			registered.set(false);
 			log.error("Could not register service!", e);
 			throw new ConsultantException(e);
 		}
 	}
 
 	public void deregisterService() {
+		if (!registered.compareAndSet(true, false)) {
+			return;
+		}
+
 		String serviceId = id.getInstance().get();
 		String url = host + "/v1/agent/service/deregister/" + serviceId;
+		log.info("Deregistering service from Consul...");
 
 		HttpDelete request = new HttpDelete(url);
 		request.setHeader("User-Agent", "Consultant");
@@ -375,6 +393,7 @@ public class Consultant {
 			throw new ConsultantException("Could not deregister service. Consul returned: " + statusCode);
 		}
 		catch (IOException | RuntimeException e) {
+			registered.set(true);
 			log.error("Could not deregister service!", e);
 			throw new ConsultantException(e);
 		}
@@ -404,7 +423,7 @@ public class Consultant {
 		return list(serviceName).stream()
 				.findFirst()
 				.map(service -> {
-					String address = Optional.ofNullable(service.getServiceAddress())
+					String address = Optional.ofNullable(Strings.emptyToNull(service.getServiceAddress()))
 							.orElse(service.getAddress());
 
 					return new InetSocketAddress(address, service.getServicePort());
@@ -454,6 +473,12 @@ public class Consultant {
 	public void shutdown() {
 		executor.shutdownNow();
 		try {
+			try {
+				deregisterService();
+			}
+			catch (ConsultantException e) {
+				log.error("Error occurred while deregistering", e);
+			}
 			http.close();
 		}
 		catch (IOException e) {
