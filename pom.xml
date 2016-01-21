@@ -7,7 +7,7 @@
 
 	<groupId>me.magnet</groupId>
 	<artifactId>consultant</artifactId>
-	<version>1.2.3-SNAPSHOT</version>
+	<version>1.2.3</version>
 	<packaging>jar</packaging>
 
 	<name>consultant</name>
