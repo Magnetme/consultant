@@ -95,7 +95,6 @@ class ConfigUpdater implements Runnable {
 					case 404:   // Not Found
 						timeout = 5_000;
 						onNewConfig(newConfig);
-
 						break;
 					case 204:   // No Content
 					case 504:   // Gateway Timeout

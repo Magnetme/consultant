@@ -377,6 +377,7 @@ public class Consultant {
 
 	public void registerService(int port) {
 		if (!registered.compareAndSet(false, true)) {
+			log.warn("Cannot register the service, as service was already registered!");
 			return;
 		}
 
@@ -396,7 +397,7 @@ public class Consultant {
 			request.setHeader("User-Agent", "Consultant");
 			try (CloseableHttpResponse response = http.execute(request)) {
 				int statusCode = response.getStatusLine().getStatusCode();
-				if (statusCode >= 200 && statusCode < 300) {
+				if (statusCode >= 200 && statusCode < 400) {
 					return;
 				}
 				log.error("Could not register service, status: " + statusCode);
@@ -412,6 +413,7 @@ public class Consultant {
 
 	public void deregisterService() {
 		if (!registered.compareAndSet(true, false)) {
+			log.warn("Cannot deregister the service, as service wasn't registered or was already deregistered!");
 			return;
 		}
 
@@ -423,7 +425,7 @@ public class Consultant {
 		request.setHeader("User-Agent", "Consultant");
 		try (CloseableHttpResponse response = http.execute(request)) {
 			int statusCode = response.getStatusLine().getStatusCode();
-			if (statusCode >= 200 && statusCode < 300) {
+			if (statusCode >= 200 && statusCode < 400) {
 				return;
 			}
 			log.error("Could not deregister service, status: " + statusCode);
@@ -443,7 +445,7 @@ public class Consultant {
 		request.setHeader("User-Agent", "Consultant");
 		try (CloseableHttpResponse response = http.execute(request)) {
 			int statusCode = response.getStatusLine().getStatusCode();
-			if (statusCode >= 200 && statusCode < 300) {
+			if (statusCode >= 200 && statusCode < 400) {
 				InputStream content = response.getEntity().getContent();
 				return mapper.readValue(content, new TypeReference<List<Service>>() {});
 			}
@@ -511,17 +513,18 @@ public class Consultant {
 	 * Tears any outstanding resources down.
 	 */
 	public void shutdown() {
+		try {
+			deregisterService();
+		}
+		catch (ConsultantException e) {
+			log.error("Error occurred while deregistering", e);
+		}
+
 		if (pullConfig) {
 			executor.shutdownNow();
 		}
 
 		try {
-			try {
-				deregisterService();
-			}
-			catch (ConsultantException e) {
-				log.error("Error occurred while deregistering", e);
-			}
 			http.close();
 		}
 		catch (IOException e) {
