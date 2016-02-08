@@ -382,7 +382,7 @@ public class Consultant {
 		}
 
 		String url = host + "/v1/agent/service/register";
-		log.info("Registering service with Consul...");
+		log.info("Registering service with Consul: {}", id);
 
 		try {
 			String serviceId = id.getInstance().get();
@@ -419,7 +419,7 @@ public class Consultant {
 
 		String serviceId = id.getInstance().get();
 		String url = host + "/v1/agent/service/deregister/" + serviceId;
-		log.info("Deregistering service from Consul...");
+		log.info("Deregistering service from Consul: {}", id);
 
 		HttpDelete request = new HttpDelete(url);
 		request.setHeader("User-Agent", "Consultant");
@@ -520,7 +520,7 @@ public class Consultant {
 			log.error("Error occurred while deregistering", e);
 		}
 
-		if (pullConfig) {
+		if (pullConfig && !executor.isShutdown()) {
 			executor.shutdownNow();
 		}
 
