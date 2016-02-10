@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Strings;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
@@ -438,8 +437,8 @@ public class Consultant {
 		}
 	}
 
-	public List<Service> list(String serviceName) {
-		String url = host + "/v1/catalog/service/" + serviceName;
+	public List<ServiceInstance> list(String serviceName) {
+		String url = host + "/v1/health/service/" + serviceName + "?passing&near=_agent";
 
 		HttpGet request = new HttpGet(url);
 		request.setHeader("User-Agent", "Consultant");
@@ -447,7 +446,7 @@ public class Consultant {
 			int statusCode = response.getStatusLine().getStatusCode();
 			if (statusCode >= 200 && statusCode < 400) {
 				InputStream content = response.getEntity().getContent();
-				return mapper.readValue(content, new TypeReference<List<Service>>() {});
+				return mapper.readValue(content, new TypeReference<List<ServiceInstance>>() {});
 			}
 			log.error("Could not locate service: " + serviceName + ", status: " + statusCode);
 			throw new ConsultantException("Could not locate service: " + serviceName + ". Consul returned: " + statusCode);
@@ -461,11 +460,13 @@ public class Consultant {
 	public Optional<InetSocketAddress> locate(String serviceName) {
 		return list(serviceName).stream()
 				.findFirst()
-				.map(service -> {
-					String address = Optional.ofNullable(Strings.emptyToNull(service.getServiceAddress()))
+				.map(instance -> {
+					Node node = instance.getNode();
+					Service service = instance.getService();
+					String address = Optional.ofNullable(node.getAddress())
 							.orElse(service.getAddress());
 
-					return new InetSocketAddress(address, service.getServicePort());
+					return new InetSocketAddress(address, service.getPort());
 				});
 	}
 
