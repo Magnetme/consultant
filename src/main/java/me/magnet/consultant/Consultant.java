@@ -281,11 +281,6 @@ public class Consultant {
 					http, pullConfig);
 
 			consultant.init(properties);
-
-			if (!executorSpecified) {
-				Runtime.getRuntime().addShutdownHook(new Thread(consultant::shutdown));
-			}
-
 			return consultant;
 		}
 
