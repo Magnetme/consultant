@@ -251,9 +251,7 @@ public class Consultant {
 				}
 			}
 
-			boolean executorSpecified = true;
 			if (executor == null) {
-				executorSpecified = false;
 				executor = new ScheduledThreadPoolExecutor(1);
 			}
 
