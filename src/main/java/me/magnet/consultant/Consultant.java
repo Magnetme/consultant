@@ -63,12 +63,14 @@ public class Consultant {
 		private boolean pullConfig;
 		private final SetMultimap<String, SettingListener> settingListeners;
 		private final Set<ConfigListener> configListeners;
+		private String healthEndpoint;
 
 		private Builder() {
 			this.settingListeners = HashMultimap.create();
 			this.configListeners = Sets.newHashSet();
 			this.properties = new Properties();
 			this.pullConfig = true;
+			this.healthEndpoint = "_health";
 		}
 
 		/**
@@ -161,6 +163,17 @@ public class Consultant {
 		public Builder identifyAs(String serviceName, String datacenter, String hostname, String instanceName) {
 			checkArgument(!isNullOrEmpty(serviceName), "You must specify a 'serviceName'!");
 			this.id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName);
+			return this;
+		}
+
+		/**
+		 * States the endpoint used for checking the service's health.
+		 *
+		 * @param endpoint The endpoint to use for health checking. Defaults to "/_health".
+		 * @return The Builder instance.
+		 */
+		public Builder setHealthEndpoint(String endpoint) {
+			this.healthEndpoint = endpoint;
 			return this;
 		}
 
@@ -276,7 +289,7 @@ public class Consultant {
 			}
 
 			Consultant consultant = new Consultant(executor, host, id, settingListeners, configListeners, validator,
-					http, pullConfig);
+					http, pullConfig, healthEndpoint);
 
 			consultant.init(properties);
 			return consultant;
@@ -313,13 +326,14 @@ public class Consultant {
 	private final ConfigValidator validator;
 	private final Properties validated;
 	private final boolean pullConfig;
+	private final String healthEndpoint;
 
 	private final Multimap<String, SettingListener> settingListeners;
 	private final Set<ConfigListener> configListeners;
 
 	private Consultant(ScheduledExecutorService executor, String host, ServiceIdentifier identifier,
 			SetMultimap<String, SettingListener> settingListeners, Set<ConfigListener> configListeners,
-			ConfigValidator validator, CloseableHttpClient http, boolean pullConfig) {
+			ConfigValidator validator, CloseableHttpClient http, boolean pullConfig, String healthEndpoint) {
 
 		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
@@ -331,6 +345,7 @@ public class Consultant {
 		this.id = identifier;
 		this.pullConfig = pullConfig;
 		this.validated = new Properties();
+		this.healthEndpoint = healthEndpoint;
 		this.http = http;
 	}
 
@@ -380,7 +395,7 @@ public class Consultant {
 			String serviceId = id.getInstance().get();
 			String serviceName = id.getServiceName();
 			String serviceHost = id.getHostName().orElse(InetAddress.getLoopbackAddress().getHostAddress());
-			Check check = new Check("http://" + serviceHost + ":" + port + "/_health", HEALTH_CHECK_INTERVAL);
+			Check check = new Check("http://" + serviceHost + ":" + port + "/" + healthEndpoint, HEALTH_CHECK_INTERVAL);
 			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, serviceHost, port, check);
 			String serialized = mapper.writeValueAsString(registration);
 
