@@ -4,7 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -18,6 +18,7 @@ public class ServiceIdentifier {
 	private final Optional<String> datacenter;
 	private final Optional<String> hostName;
 	private final Optional<String> instance;
+	private final Collection<String> tags;
 
 	ServiceIdentifier(String serviceName, String datacenter, String hostName, String instance) {
 		checkArgument(!isNullOrEmpty(serviceName), "You must specify a 'serviceName'!");
@@ -29,6 +30,7 @@ public class ServiceIdentifier {
 		this.hostName = Optional.ofNullable(hostName);
 		this.serviceName = serviceName;
 		this.instance = Optional.ofNullable(instance);
+		this.tags = Lists.newArrayList();
 	}
 
 	public String getServiceName() {
@@ -45,6 +47,12 @@ public class ServiceIdentifier {
 
 	public Optional<String> getInstance() {
 		return instance;
+	}
+
+	public Collection<String> getTags() { return tags; }
+
+	public void addTagSet(Collection<String> newTags) {
+		this.tags.addAll(newTags);
 	}
 
 	public boolean appliesTo(ServiceIdentifier serviceIdentifier) {
@@ -102,6 +110,7 @@ public class ServiceIdentifier {
 					.append(datacenter, id.datacenter)
 					.append(hostName, id.hostName)
 					.append(instance, id.instance)
+					.append(tags, id.tags)
 					.isEquals();
 		}
 		return false;
@@ -114,12 +123,13 @@ public class ServiceIdentifier {
 				.append(datacenter)
 				.append(hostName)
 				.append(instance)
+				.append(tags)
 				.toHashCode();
 	}
 
 	@Override
 	public String toString() {
-		List<String> descriptors = Lists.newArrayList();
+		Collection<String> descriptors = Lists.newArrayList();
 		getDatacenter().ifPresent(dc -> descriptors.add("dc=" + dc));
 		getHostName().ifPresent(host -> descriptors.add("host=" + host));
 		getInstance().ifPresent(instance -> descriptors.add("instance=" + instance));
