@@ -25,6 +25,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
@@ -42,8 +43,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The Consultant class allows you to retrieve the configuration for your application from Consul, and at the same
- * time subscribe to changes to that configuration.
+ * The Consultant class allows you to retrieve the configuration for your application from Consul, and at the same time
+ * subscribe to changes to that configuration.
  */
 public class Consultant {
 
@@ -64,6 +65,7 @@ public class Consultant {
 		private final SetMultimap<String, SettingListener> settingListeners;
 		private final Set<ConfigListener> configListeners;
 		private String healthEndpoint;
+		private Collection<String> tags;
 
 		private Builder() {
 			this.settingListeners = HashMultimap.create();
@@ -71,13 +73,13 @@ public class Consultant {
 			this.properties = new Properties();
 			this.pullConfig = true;
 			this.healthEndpoint = "_health";
+			this.tags = Lists.newArrayList();
 		}
 
 		/**
-		 * States that Consultant should use a specific executor service for listening to configuration updates. If
-		 * no executor service is specified, Consultant will create a private executor service. This executor service
-		 * will automatically be cleaned up when the JVM terminates, or when shutdown() is called on the Consultant
-		 * object.
+		 * States that Consultant should use a specific executor service for listening to configuration updates. If no
+		 * executor service is specified, Consultant will create a private executor service. This executor service will
+		 * automatically be cleaned up when the JVM terminates, or when shutdown() is called on the Consultant object.
 		 *
 		 * @param executor The ScheduledExecutorService to use to schedule jobs on.
 		 * @return The Builder instance.
@@ -100,10 +102,10 @@ public class Consultant {
 		}
 
 		/**
-		 * States the identify of this application. This is used to figure out what configuration settings apply
-		 * to this application. If you don't set the identity using this method, you must define it using
-		 * environment variables such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code> and
-		 * <code>SERVICE_HOST</code>.
+		 * States the identify of this application. This is used to figure out what configuration settings apply to
+		 * this
+		 * application. If you don't set the identity using this method, you must define it using environment variables
+		 * such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code> and <code>SERVICE_HOST</code>.
 		 *
 		 * @param serviceName The name of this service.
 		 * @return The Builder instance.
@@ -116,13 +118,13 @@ public class Consultant {
 		}
 
 		/**
-		 * States the identify of this application. This is used to figure out what configuration settings apply
-		 * to this application. If you don't set the identity using this method, you must define it using
-		 * environment variables such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code> and
-		 * <code>SERVICE_HOST</code>.
+		 * States the identify of this application. This is used to figure out what configuration settings apply to
+		 * this
+		 * application. If you don't set the identity using this method, you must define it using environment variables
+		 * such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code> and <code>SERVICE_HOST</code>.
 		 *
 		 * @param serviceName The name of this service.
-		 * @param datacenter The name of the datacenter where this service is running in.
+		 * @param datacenter  The name of the datacenter where this service is running in.
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName, String datacenter) {
@@ -132,14 +134,14 @@ public class Consultant {
 		}
 
 		/**
-		 * States the identify of this application. This is used to figure out what configuration settings apply
-		 * to this application. If you don't set the identity using this method, you must define it using
-		 * environment variables such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code> and
-		 * <code>SERVICE_HOST</code>.
+		 * States the identify of this application. This is used to figure out what configuration settings apply to
+		 * this
+		 * application. If you don't set the identity using this method, you must define it using environment variables
+		 * such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code> and <code>SERVICE_HOST</code>.
 		 *
 		 * @param serviceName The name of this service.
-		 * @param datacenter The name of the datacenter where this service is running in.
-		 * @param hostname The name of the host where this service is running on.
+		 * @param datacenter  The name of the datacenter where this service is running in.
+		 * @param hostname    The name of the host where this service is running on.
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName, String datacenter, String hostname) {
@@ -149,20 +151,35 @@ public class Consultant {
 		}
 
 		/**
-		 * States the identify of this application. This is used to figure out what configuration settings apply
-		 * to this application. If you don't set the identity using this method, you must define it using
-		 * environment variables such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code>,
-		 * <code>SERVICE_HOST</code>, and <code>SERVICE_INSTANCE</code>.
+		 * States the identify of this application. This is used to figure out what configuration settings apply to
+		 * this
+		 * application. If you don't set the identity using this method, you must define it using environment variables
+		 * such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code>, <code>SERVICE_HOST</code>, and
+		 * <code>SERVICE_INSTANCE</code>.
 		 *
-		 * @param serviceName The name of this service.
-		 * @param datacenter The name of the datacenter where this service is running in.
-		 * @param hostname The name of the host where this service is running on.
+		 * @param serviceName  The name of this service.
+		 * @param datacenter   The name of the datacenter where this service is running in.
+		 * @param hostname     The name of the host where this service is running on.
 		 * @param instanceName The name/role of this service instance.
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName, String datacenter, String hostname, String instanceName) {
 			checkArgument(!isNullOrEmpty(serviceName), "You must specify a 'serviceName'!");
 			this.id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName);
+			return this;
+		}
+
+		/**
+		 * Add a service tag to be registered with Consul. This can be used to specify any information relevant to the
+		 * specific instance. Examples can be the version of a service or whether a service is ready for production
+		 * traffic
+		 *
+		 * @param tag The value of the tag
+		 * @return The Builder instance
+		 */
+		public Builder withTag(String tag) {
+			checkArgument(!this.tags.contains(tag), "This tag has already been specified");
+			this.tags.add(tag);
 			return this;
 		}
 
@@ -191,8 +208,8 @@ public class Consultant {
 		}
 
 		/**
-		 * Specifies a callback listener which is notified of whenever a new and valid configuration is detected
-		 * in Consul.
+		 * Specifies a callback listener which is notified of whenever a new and valid configuration is detected in
+		 * Consul.
 		 *
 		 * @param listener The listener to call when a new valid configuration is detected.
 		 * @return The Builder instance.
@@ -214,8 +231,8 @@ public class Consultant {
 		}
 
 		/**
-		 * Specifies the validator which is used to determine if a new configuration detected in Consul is valid,
-		 * and may be published through the ConfigListener callback.
+		 * Specifies the validator which is used to determine if a new configuration detected in Consul is valid, and
+		 * may be published through the ConfigListener callback.
 		 *
 		 * @param validator The validator to call when a new configuration is detected.
 		 * @return The Builder instance.
@@ -287,6 +304,7 @@ public class Consultant {
 						Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
 								.orElse(UUID.randomUUID().toString()));
 			}
+			id.addTagSet(tags);
 
 			Consultant consultant = new Consultant(executor, host, id, settingListeners, configListeners, validator,
 					http, pullConfig, healthEndpoint);
@@ -395,8 +413,11 @@ public class Consultant {
 			String serviceId = id.getInstance().get();
 			String serviceName = id.getServiceName();
 			String serviceHost = id.getHostName().orElse(InetAddress.getLoopbackAddress().getHostAddress());
-			Check check = new Check("http://" + serviceHost + ":" + port + "/" + healthEndpoint, HEALTH_CHECK_INTERVAL);
-			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, serviceHost, port, check);
+			Collection<String> tags = id.getTags();
+			Check check = new Check("http://" + serviceHost + ":" + port + "/" + healthEndpoint,
+					HEALTH_CHECK_INTERVAL);
+			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, serviceHost, port,
+					check, tags.toArray(new String[tags.size()]));
 			String serialized = mapper.writeValueAsString(registration);
 
 			HttpPut request = new HttpPut(url);
@@ -457,7 +478,8 @@ public class Consultant {
 				return mapper.readValue(content, new TypeReference<List<ServiceInstance>>() {});
 			}
 			log.error("Could not locate service: " + serviceName + ", status: " + statusCode);
-			throw new ConsultantException("Could not locate service: " + serviceName + ". Consul returned: " + statusCode);
+			throw new ConsultantException(
+					"Could not locate service: " + serviceName + ". Consul returned: " + statusCode);
 		}
 		catch (IOException | RuntimeException e) {
 			log.error("Could not locate service: " + serviceName);
@@ -499,7 +521,7 @@ public class Consultant {
 		if (changes.isEmpty()) {
 			return;
 		}
-		
+
 		for (ConfigListener listener : configListeners) {
 			listener.onConfigUpdate(validated);
 		}
