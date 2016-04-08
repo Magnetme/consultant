@@ -4,7 +4,6 @@ import static me.magnet.consultant.HttpUtils.createStatus;
 import static me.magnet.consultant.HttpUtils.toJson;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -19,8 +18,9 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.SettableFuture;
 import com.netflix.governator.configuration.ConfigurationKey;
 import com.netflix.governator.configuration.Property;
+import me.magnet.consultant.Consultant.Builder.Agent;
+import me.magnet.consultant.Consultant.Builder.Config;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicHeader;
 import org.junit.After;
 import org.junit.Before;
@@ -31,11 +31,11 @@ public class ConsultantConfigurationProviderTest {
 	private static final ConfigurationKey CONFIGURATION_KEY = new ConfigurationKey("some.key", Lists.newArrayList());
 
 	private Consultant consultant;
-	private CloseableHttpClient http;
+	private MockedHttpClientBuilder httpBuilder;
 
 	@Before
 	public void setUp() {
-		this.http = mock(CloseableHttpClient.class);
+		this.httpBuilder = new MockedHttpClientBuilder();
 	}
 
 	@After
@@ -153,17 +153,33 @@ public class ConsultantConfigurationProviderTest {
 	}
 
 	private void createConsultant(Map<String, String> entries) throws Exception {
-		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
-		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response.getEntity()).thenReturn(toJson(entries));
+		httpBuilder.onGet("/v1/agent/self", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
 
-		when(http.execute(any())).thenReturn(response);
+			Config config = new Config();
+			config.setDatacenter("eu-central");
+			config.setNodeName("app1");
+
+			Agent agent = new Agent();
+			agent.setConfig(config);
+
+			when(response.getEntity()).thenReturn(toJson(agent));
+			return response;
+		});
+
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(entries));
+			return response;
+		});
 
 		SettableFuture<Properties> future = SettableFuture.create();
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
 				.onValidConfig(future::set)

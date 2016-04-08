@@ -1,12 +1,10 @@
 package me.magnet.consultant;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.List;
@@ -21,6 +19,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
@@ -30,6 +30,7 @@ import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -54,23 +55,74 @@ public class Consultant {
 	 */
 	public static class Builder {
 
+		@JsonIgnoreProperties(ignoreUnknown = true)
+		public static class Agent {
+
+			@JsonProperty("Config")
+			private Config config;
+
+			public Config getConfig() {
+				return config;
+			}
+
+			void setConfig(Config config) {
+				this.config = config;
+			}
+
+		}
+
+		@JsonIgnoreProperties(ignoreUnknown = true)
+		public static class Config {
+
+			@JsonProperty("Datacenter")
+			private String datacenter;
+
+			@JsonProperty("NodeName")
+			private String nodeName;
+
+			public String getDatacenter() {
+				return datacenter;
+			}
+
+			public String getNodeName() {
+				return nodeName;
+			}
+
+			void setDatacenter(String datacenter) {
+				this.datacenter = datacenter;
+			}
+
+			void setNodeName(String nodeName) {
+				this.nodeName = nodeName;
+			}
+
+		}
+
 		private ScheduledExecutorService executor;
-		private String host;
-		private ServiceIdentifier id;
-		private ConfigValidator validator;
+		private ObjectMapper mapper;
 		private CloseableHttpClient http;
-		private Properties properties;
-		private boolean pullConfig;
+
+		private ConfigValidator validator;
 		private final SetMultimap<String, SettingListener> settingListeners;
 		private final Set<ConfigListener> configListeners;
+
+		private String host;
+		private Properties properties;
+		private boolean pullConfig;
+
+		private String serviceName;
+		private String datacenter;
+		private String hostname;
+		private String instanceName;
 		private String healthEndpoint;
+
 
 		private Builder() {
 			this.settingListeners = HashMultimap.create();
 			this.configListeners = Sets.newHashSet();
 			this.properties = new Properties();
 			this.pullConfig = true;
-			this.healthEndpoint = "_health";
+			this.healthEndpoint = "/_health";
 		}
 
 		/**
@@ -84,6 +136,17 @@ public class Consultant {
 		 */
 		public Builder usingExecutor(ScheduledExecutorService executor) {
 			this.executor = executor;
+			return this;
+		}
+
+		/**
+		 * States that Consultant should use a specific ObjectMapper for serialization and deserialization of JSON.
+		 *
+		 * @param mapper The ObjectMapper to use when deserializing JSON and serializing objects.
+		 * @return The Builder instance.
+		 */
+		public Builder usingObjectMapper(ObjectMapper mapper) {
+			this.mapper = mapper;
 			return this;
 		}
 
@@ -109,33 +172,30 @@ public class Consultant {
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName) {
-			return identifyAs(serviceName, fromEnvironment("SERVICE_DC"),
-					fromEnvironment("SERVICE_HOST"),
-					Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
-							.orElse(UUID.randomUUID().toString()));
+			return identifyAs(serviceName, null, null, null);
 		}
 
 		/**
 		 * States the identify of this application. This is used to figure out what configuration settings apply
-		 * to this application. If you don't set the identity using this method, you must define it using
+		 * to this application. If you don't set the identity using this method, you should define it using
 		 * environment variables such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code> and
-		 * <code>SERVICE_HOST</code>.
+		 * <code>SERVICE_HOST</code>. If the datacenter is not defined using environment variables either, this
+		 * value will default to the corresponding value of the Consul agent.
 		 *
 		 * @param serviceName The name of this service.
 		 * @param datacenter The name of the datacenter where this service is running in.
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName, String datacenter) {
-			return identifyAs(serviceName, datacenter, fromEnvironment("SERVICE_HOST"),
-					Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
-							.orElse(UUID.randomUUID().toString()));
+			return identifyAs(serviceName, datacenter, null, null);
 		}
 
 		/**
 		 * States the identify of this application. This is used to figure out what configuration settings apply
-		 * to this application. If you don't set the identity using this method, you must define it using
+		 * to this application. If you don't set the identity using this method, you should define it using
 		 * environment variables such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code> and
-		 * <code>SERVICE_HOST</code>.
+		 * <code>SERVICE_HOST</code>. If the datacenter and hostname are not defined using environment variables
+		 * either, these values will default to the corresponding values of the Consul agent.
 		 *
 		 * @param serviceName The name of this service.
 		 * @param datacenter The name of the datacenter where this service is running in.
@@ -143,16 +203,16 @@ public class Consultant {
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName, String datacenter, String hostname) {
-			return identifyAs(serviceName, datacenter, hostname,
-					Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
-							.orElse(UUID.randomUUID().toString()));
+			return identifyAs(serviceName, datacenter, hostname, null);
 		}
 
 		/**
 		 * States the identify of this application. This is used to figure out what configuration settings apply
-		 * to this application. If you don't set the identity using this method, you must define it using
+		 * to this application. If you don't set the identity using this method, you should define it using
 		 * environment variables such as <code>SERVICE_NAME</code>, and optionally <code>SERVICE_DC</code>,
-		 * <code>SERVICE_HOST</code>, and <code>SERVICE_INSTANCE</code>.
+		 * <code>SERVICE_HOST</code>, and <code>SERVICE_INSTANCE</code>. If the datacenter and hostname are not
+		 * defined using environment variables either, these values will default to the corresponding values of
+		 * the Consul agent.
 		 *
 		 * @param serviceName The name of this service.
 		 * @param datacenter The name of the datacenter where this service is running in.
@@ -162,7 +222,10 @@ public class Consultant {
 		 */
 		public Builder identifyAs(String serviceName, String datacenter, String hostname, String instanceName) {
 			checkArgument(!isNullOrEmpty(serviceName), "You must specify a 'serviceName'!");
-			this.id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName);
+			this.serviceName = serviceName;
+			this.datacenter = datacenter;
+			this.hostname = hostname;
+			this.instanceName = instanceName;
 			return this;
 		}
 
@@ -264,6 +327,17 @@ public class Consultant {
 				}
 			}
 
+			serviceName = Optional.ofNullable(serviceName).orElse(fromEnvironment("SERVICE_NAME"));
+			datacenter = Optional.ofNullable(datacenter).orElse(fromEnvironment("SERVICE_DC"));
+			hostname = Optional.ofNullable(hostname).orElse(fromEnvironment("SERVICE_HOST"));
+			instanceName = Optional.ofNullable(instanceName)
+					.orElse(Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
+							.orElse(UUID.randomUUID().toString()));
+
+			if (mapper == null) {
+				mapper = new ObjectMapper();
+			}
+
 			if (executor == null) {
 				executor = new ScheduledThreadPoolExecutor(1);
 			}
@@ -278,17 +352,24 @@ public class Consultant {
 						.build();
 			}
 
-			if (id == null) {
-				id = new ServiceIdentifier(
-						checkNotNull(fromEnvironment("SERVICE_NAME"),
-								"You must specify the name of the service using SERVICE_NAME=<service_name>"),
-						fromEnvironment("SERVICE_DC"),
-						fromEnvironment("SERVICE_HOST"),
-						Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
-								.orElse(UUID.randomUUID().toString()));
+			try (CloseableHttpResponse response = http.execute(new HttpGet(host + "/v1/agent/self"))) {
+				HttpEntity entity = response.getEntity();
+				Agent agent = mapper.readValue(entity.getContent(), Agent.class);
+				Config config = agent.getConfig();
+
+				if (isNullOrEmpty(datacenter)) {
+					datacenter = config.getDatacenter();
+				}
+				if (isNullOrEmpty(hostname)) {
+					hostname = config.getNodeName();
+				}
+			}
+			catch (IOException e) {
+				throw new RuntimeException("Could not fetch agent details from Consul.", e);
 			}
 
-			Consultant consultant = new Consultant(executor, host, id, settingListeners, configListeners, validator,
+			ServiceIdentifier id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName);
+			Consultant consultant = new Consultant(executor, mapper, host, id, settingListeners, configListeners, validator,
 					http, pullConfig, healthEndpoint);
 
 			consultant.init(properties);
@@ -331,14 +412,15 @@ public class Consultant {
 	private final Multimap<String, SettingListener> settingListeners;
 	private final Set<ConfigListener> configListeners;
 
-	private Consultant(ScheduledExecutorService executor, String host, ServiceIdentifier identifier,
-			SetMultimap<String, SettingListener> settingListeners, Set<ConfigListener> configListeners,
-			ConfigValidator validator, CloseableHttpClient http, boolean pullConfig, String healthEndpoint) {
+	private Consultant(ScheduledExecutorService executor, ObjectMapper mapper, String host,
+			ServiceIdentifier identifier, SetMultimap<String, SettingListener> settingListeners,
+			Set<ConfigListener> configListeners, ConfigValidator validator, CloseableHttpClient http,
+			boolean pullConfig, String healthEndpoint) {
 
 		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
 		this.configListeners = Sets.newConcurrentHashSet(configListeners);
-		this.mapper = new ObjectMapper();
+		this.mapper = mapper;
 		this.validator = validator;
 		this.executor = executor;
 		this.host = host;
@@ -355,7 +437,7 @@ public class Consultant {
 			return;
 		}
 
-		log.info("Fetching initial configuration from Consul...");
+		log.info("Fetching initial configuration from Consul for serviceID: {}", id);
 		ConfigUpdater poller = new ConfigUpdater(executor, http, host, null, id, mapper, null, (properties) -> {
 			if (validator == null) {
 				updateValidatedConfig(properties);
@@ -394,8 +476,8 @@ public class Consultant {
 		try {
 			String serviceId = id.getInstance().get();
 			String serviceName = id.getServiceName();
-			String serviceHost = id.getHostName().orElse(InetAddress.getLoopbackAddress().getHostAddress());
-			Check check = new Check("http://" + serviceHost + ":" + port + "/" + healthEndpoint, HEALTH_CHECK_INTERVAL);
+			String serviceHost = id.getHostName().get();
+			Check check = new Check("http://" + serviceHost + ":" + port + healthEndpoint, HEALTH_CHECK_INTERVAL);
 			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, serviceHost, port, check);
 			String serialized = mapper.writeValueAsString(registration);
 
@@ -539,6 +621,14 @@ public class Consultant {
 		catch (IOException e) {
 			log.error("Error occurred on shutdown: " + e.getMessage(), e);
 		}
+	}
+
+	/**
+	 * @return The host on which the Consul agent can be found. Will typically return "http://localhost:8500" unless
+	 * otherwise specified in the Builder or environment variables.
+	 */
+	public String getConsulHost() {
+		return host;
 	}
 
 	/**

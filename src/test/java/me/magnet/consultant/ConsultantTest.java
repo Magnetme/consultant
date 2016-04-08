@@ -5,11 +5,11 @@ import static me.magnet.consultant.HttpUtils.toJson;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -17,10 +17,11 @@ import java.util.concurrent.TimeoutException;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.SettableFuture;
+import me.magnet.consultant.Consultant.Builder.Agent;
+import me.magnet.consultant.Consultant.Builder.Config;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicHeader;
 import org.junit.After;
 import org.junit.Before;
@@ -29,11 +30,11 @@ import org.junit.Test;
 public class ConsultantTest {
 
 	private Consultant consultant;
-	private CloseableHttpClient http;
+	private MockedHttpClientBuilder httpBuilder;
 
 	@Before
-	public void setUp() {
-		this.http = mock(CloseableHttpClient.class);
+	public void setUp() throws IOException {
+		httpBuilder = prepareHttpClient();
 	}
 
 	@After
@@ -45,17 +46,18 @@ public class ConsultantTest {
 
 	@Test(timeout = 5_000)
 	public void verifyInitialConfigLoad() throws Exception {
-		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
-		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
-
-		when(http.execute(any())).thenReturn(response);
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+			return response;
+		});
 
 		SettableFuture<Properties> future = SettableFuture.create();
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
 				.onValidConfig(future::set)
@@ -67,17 +69,18 @@ public class ConsultantTest {
 
 	@Test(timeout = 5_000, expected = TimeoutException.class)
 	public void verifyThatInvalidConfigIsNotPublished() throws Exception {
-		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
-		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
-
-		when(http.execute(any())).thenReturn(response);
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+			return response;
+		});
 
 		SettableFuture<Properties> future = SettableFuture.create();
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
 				.onValidConfig(future::set)
@@ -91,17 +94,18 @@ public class ConsultantTest {
 
 	@Test(timeout = 5_000)
 	public void verifyThatValidConfigIsPublished() throws Exception {
-		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
-		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
-
-		when(http.execute(any())).thenReturn(response);
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+			return response;
+		});
 
 		SettableFuture<Properties> future = SettableFuture.create();
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
 				.onValidConfig(future::set)
@@ -114,17 +118,18 @@ public class ConsultantTest {
 
 	@Test(timeout = 5_000)
 	public void verifyThatNewSettingsArePublishedThroughSettingsListener() throws Exception {
-		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
-		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
-
-		when(http.execute(any())).thenReturn(response);
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+			return response;
+		});
 
 		SettableFuture<Triple<String, String, String>> future = SettableFuture.create();
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
 				.onSettingUpdate("some.key", (key, oldValue, newValue) -> {
@@ -132,27 +137,32 @@ public class ConsultantTest {
 				})
 				.build();
 
-		Triple<String, String, String> expected = Triple.<String, String, String>of("some.key", null, "some-value");
+		Triple<String, String, String> expected = Triple.of("some.key", null, "some-value");
 		assertEquals(expected, future.get(2_000, TimeUnit.MILLISECONDS));
 	}
 
 	@Test(timeout = 5_000)
 	public void verifyThatModifiedSettingsArePublishedThroughSettingsListener() throws Exception {
-		CloseableHttpResponse response1 = mock(CloseableHttpResponse.class);
-		when(response1.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response1.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+			return response;
+		});
 
-		CloseableHttpResponse response2 = mock(CloseableHttpResponse.class);
-		when(response2.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
-		when(response2.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response2.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-other-value")));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true&index=1000", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-other-value")));
+			return response;
+		});
 
-		when(http.execute(any())).thenReturn(response1, response2);
 		SettableFuture<Triple<String, String, String>> future = SettableFuture.create();
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
 				.onSettingUpdate("some.key", (key, oldValue, newValue) -> {
@@ -168,21 +178,26 @@ public class ConsultantTest {
 
 	@Test(timeout = 5_000)
 	public void verifyThatDeletedSettingsArePublishedThroughSettingsListener() throws Exception {
-		CloseableHttpResponse response1 = mock(CloseableHttpResponse.class);
-		when(response1.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response1.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+			return response;
+		});
 
-		CloseableHttpResponse response2 = mock(CloseableHttpResponse.class);
-		when(response2.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
-		when(response2.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response2.getEntity()).thenReturn(toJson(ImmutableMap.of()));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true&index=1000", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of()));
+			return response;
+		});
 
-		when(http.execute(any())).thenReturn(response1, response2);
 		SettableFuture<Pair<String, String>> future = SettableFuture.create();
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
 				.onSettingUpdate("some.key", (key, oldValue, newValue) -> {
@@ -198,21 +213,26 @@ public class ConsultantTest {
 
 	@Test(timeout = 5_000)
 	public void verifyPropertiesObjectIsUpdatedOnNewConfig() throws Exception {
-		CloseableHttpResponse response1 = mock(CloseableHttpResponse.class);
-		when(response1.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response1.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+			return response;
+		});
 
-		CloseableHttpResponse response2 = mock(CloseableHttpResponse.class);
-		when(response2.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
-		when(response2.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response2.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-other-value")));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true&index=1000", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-other-value")));
+			return response;
+		});
 
-		when(http.execute(any())).thenReturn(response1, response2);
 		CountDownLatch latch = new CountDownLatch(2);
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
 				.onValidConfig((config) -> latch.countDown())
@@ -225,7 +245,7 @@ public class ConsultantTest {
 	}
 
 	@Test
-	public void verifyPropertiesCanBeSetAsEnvironment() {
+	public void verifyPropertiesCanBeSetAsEnvironment() throws Exception {
 		System.setProperty("CONSUL_HOST", "http://localhost");
 		System.setProperty("SERVICE_NAME", "oauth");
 		System.setProperty("SERVICE_DC", "eu-central");
@@ -233,7 +253,7 @@ public class ConsultantTest {
 		System.setProperty("SERVICE_INSTANCE", "master");
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.build();
 
 		ServiceIdentifier id = new ServiceIdentifier("oauth", "eu-central", "web-1", "master");
@@ -241,10 +261,10 @@ public class ConsultantTest {
 	}
 
 	@Test
-	public void verifyConfigListenerCanBeRemoved() {
+	public void verifyConfigListenerCanBeRemoved() throws Exception {
 		ConfigListener listener = System.out::println;
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth")
 				.onValidConfig(listener)
@@ -255,10 +275,10 @@ public class ConsultantTest {
 	}
 
 	@Test
-	public void verifySettingListenerCanBeRemoved() {
+	public void verifySettingListenerCanBeRemoved() throws Exception {
 		SettingListener listener = (name, oldValue, newValue) -> {};
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth")
 				.onSettingUpdate("some-key", listener)
@@ -270,21 +290,26 @@ public class ConsultantTest {
 
 	@Test(timeout = 5_000)
 	public void verifyThatIrrelevantOverridesAreIgnored() throws Exception {
-		CloseableHttpResponse response1 = mock(CloseableHttpResponse.class);
-		when(response1.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response1.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/[dc=test].some.key", "some-value")));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/[dc=test].some.key", "some-value")));
+			return response;
+		});
 
-		CloseableHttpResponse response2 = mock(CloseableHttpResponse.class);
-		when(response2.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
-		when(response2.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response2.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-other-value")));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true&index=1000", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-other-value")));
+			return response;
+		});
 
-		when(http.execute(any())).thenReturn(response1, response2);
 		SettableFuture<Pair<String, String>> future = SettableFuture.create();
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth")
 				.onSettingUpdate("some.key", (key, oldValue, newValue) -> future.set(Pair.of(key, newValue)))
@@ -296,21 +321,26 @@ public class ConsultantTest {
 
 	@Test(timeout = 5_000)
 	public void verifyThatRelevantOverridesAreProcessed() throws Exception {
-		CloseableHttpResponse response1 = mock(CloseableHttpResponse.class);
-		when(response1.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response1.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+			return response;
+		});
 
-		CloseableHttpResponse response2 = mock(CloseableHttpResponse.class);
-		when(response2.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
-		when(response2.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response2.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/[dc=eu-central].some.key", "some-other-value")));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true&index=1000", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/[dc=eu-central].some.key", "some-other-value")));
+			return response;
+		});
 
-		when(http.execute(any())).thenReturn(response1, response2);
 		SettableFuture<Pair<String, String>> future = SettableFuture.create();
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central")
 				.onSettingUpdate("some.key", (key, oldValue, newValue) -> {
@@ -326,16 +356,18 @@ public class ConsultantTest {
 
 	@Test(timeout = 5_000)
 	public void verifyThatSpecifyingNoConfigPullDoesNotUpdateConfig() throws Exception {
-		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
-		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
-		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+		httpBuilder.onGet("/v1/kv/config/oauth/?recurse=true", request -> {
+			CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+			when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+			when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+			when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+			return response;
+		});
 
-		when(http.execute(any())).thenReturn(response);
 		CountDownLatch latch = new CountDownLatch(1);
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.pullConfigFromConsul(false)
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central")
@@ -353,7 +385,7 @@ public class ConsultantTest {
 		properties.setProperty("some.key", "some-value");
 
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.pullConfigFromConsul(false)
 				.startWith(properties)
 				.withConsulHost("http://localhost")
@@ -369,12 +401,30 @@ public class ConsultantTest {
 	@Test(expected = IllegalArgumentException.class)
 	public void verifyThatSpecifyingNullForCustomPropertiesThrowsException() throws Exception {
 		consultant = Consultant.builder()
-				.usingHttpClient(http)
+				.usingHttpClient(httpBuilder.create())
 				.pullConfigFromConsul(false)
 				.startWith(null)
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central")
 				.build();
+	}
+
+	private MockedHttpClientBuilder prepareHttpClient() throws IOException {
+		return new MockedHttpClientBuilder()
+				.onGet("/v1/agent/self", request -> {
+					CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+					when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+
+					Config config = new Config();
+					config.setDatacenter("eu-central");
+					config.setNodeName("app1");
+
+					Agent agent = new Agent();
+					agent.setConfig(config);
+
+					when(response.getEntity()).thenReturn(toJson(agent));
+					return response;
+				});
 	}
 
 }
