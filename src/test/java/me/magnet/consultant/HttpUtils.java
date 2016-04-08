@@ -1,11 +1,12 @@
 package me.magnet.consultant;
 
-import java.io.UnsupportedEncodingException;
+import java.io.IOException;
 import java.util.Base64;
 import java.util.Base64.Encoder;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.StringEntity;
@@ -21,12 +22,27 @@ public class HttpUtils {
 		return new BasicStatusLine(new ProtocolVersion("http", 1, 1), status, phrase);
 	}
 
-	public static StringEntity toJson(Map<String, String> entries) throws UnsupportedEncodingException {
+	public static StringEntity toJson(Map<String, String> entries) {
 		Encoder encoder = Base64.getEncoder();
-		return new StringEntity("[" + entries.entrySet().stream()
-				.map(entry -> "{\"Key\":\"" + entry.getKey() + "\",\"Value\":\"" + encoder.encodeToString(
-						entry.getValue().getBytes()) + "\"}")
-				.collect(Collectors.joining(",")) + "]");
+		try {
+			return new StringEntity("[" + entries.entrySet().stream()
+					.map(entry -> "{\"Key\":\"" + entry.getKey() + "\",\"Value\":\"" + encoder.encodeToString(
+							entry.getValue().getBytes()) + "\"}")
+					.collect(Collectors.joining(",")) + "]");
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public static StringEntity toJson(Object value) {
+		ObjectMapper objectMapper = new ObjectMapper();
+		try {
+			return new StringEntity(objectMapper.writeValueAsString(value));
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 }
