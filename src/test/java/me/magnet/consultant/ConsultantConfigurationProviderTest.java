@@ -39,7 +39,7 @@ public class ConsultantConfigurationProviderTest {
 	}
 
 	@After
-	public void tearDown() {
+	public void tearDown() throws InterruptedException {
 		consultant.shutdown();
 	}
 
