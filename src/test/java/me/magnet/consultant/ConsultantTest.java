@@ -38,7 +38,7 @@ public class ConsultantTest {
 	}
 
 	@After
-	public void tearDown() {
+	public void tearDown() throws InterruptedException {
 		if (consultant != null) {
 			consultant.shutdown();
 		}

@@ -17,6 +17,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -49,6 +50,7 @@ import org.slf4j.LoggerFactory;
 public class Consultant {
 
 	private static final int HEALTH_CHECK_INTERVAL = 10;
+	private static final int TERMINATION_TIMEOUT_SECONDS = 5;
 
 	/**
 	 * Allows you to build a custom Consultant object.
@@ -602,8 +604,9 @@ public class Consultant {
 
 	/**
 	 * Tears any outstanding resources down.
+	 * @throws InterruptedException If it got interrupted while waiting for any open tasks
 	 */
-	public void shutdown() {
+	public void shutdown() throws InterruptedException {
 		try {
 			deregisterService();
 		}
@@ -612,7 +615,18 @@ public class Consultant {
 		}
 
 		if (pullConfig && !executor.isShutdown()) {
-			executor.shutdownNow();
+			List<Runnable> runningTasks = executor.shutdownNow();
+			log.info("Still have {} running tasks", runningTasks.size());
+			try {
+				boolean tasksKilled = executor.awaitTermination(TERMINATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+				if (!tasksKilled) {
+					log.warn("Could not kill tasks within timeout frame");
+				}
+			}
+			catch (InterruptedException e) {
+				log.error("Interrupted while waiting for tasks to finish");
+				throw e;
+			}
 		}
 
 		try {
