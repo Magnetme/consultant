@@ -614,9 +614,16 @@ public class Consultant {
 			log.error("Error occurred while deregistering", e);
 		}
 
+		try {
+			http.close();
+		}
+		catch (IOException | RuntimeException e) {
+			log.error("Error occurred on shutdown: " + e.getMessage(), e);
+		}
+
 		if (pullConfig && !executor.isShutdown()) {
 			List<Runnable> runningTasks = executor.shutdownNow();
-			log.info("Still have {} running tasks", runningTasks.size());
+			log.info("There are currently {} running tasks", runningTasks.size());
 			try {
 				boolean tasksKilled = executor.awaitTermination(TERMINATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 				if (!tasksKilled) {
@@ -627,13 +634,6 @@ public class Consultant {
 				log.error("Interrupted while waiting for tasks to finish");
 				throw e;
 			}
-		}
-
-		try {
-			http.close();
-		}
-		catch (IOException e) {
-			log.error("Error occurred on shutdown: " + e.getMessage(), e);
 		}
 	}
 
