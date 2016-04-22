@@ -1,15 +1,5 @@
 package me.magnet.consultant;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Maps;
@@ -18,6 +8,17 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 class ConfigUpdater implements Runnable {
 
@@ -47,7 +48,7 @@ class ConfigUpdater implements Runnable {
 
 	private final CloseableHttpClient httpClient;
 	private final ScheduledExecutorService executor;
-	private final String consulHost;
+	private final URI consulURI;
 	private final ServiceIdentifier identifier;
 	private final ObjectMapper objectMapper;
 	private final Properties config;
@@ -55,7 +56,7 @@ class ConfigUpdater implements Runnable {
 
 	private String consulIndex;
 
-	ConfigUpdater(ScheduledExecutorService executor, CloseableHttpClient httpClient, String consulHost,
+	ConfigUpdater(ScheduledExecutorService executor, CloseableHttpClient httpClient, URI consulURI,
 			String consulIndex, ServiceIdentifier identifier, ObjectMapper objectMapper,
 			Properties config, ConfigListener listener) {
 
@@ -63,7 +64,7 @@ class ConfigUpdater implements Runnable {
 		this.consulIndex = consulIndex;
 		this.objectMapper = objectMapper;
 		this.executor = executor;
-		this.consulHost = consulHost;
+		this.consulURI = consulURI;
 		this.identifier = identifier;
 		this.listener = listener;
 		this.config = config != null ? config : new Properties();
@@ -73,7 +74,7 @@ class ConfigUpdater implements Runnable {
 	public void run() {
 		long timeout = 500;
 		try {
-			String url = consulHost + "/v1/kv/" + PREFIX + "/" + identifier.getServiceName() + "/?recurse=true";
+			String url = consulURI + "/v1/kv/" + PREFIX + "/" + identifier.getServiceName() + "/?recurse=true";
 			if (consulIndex != null) {
 				url += "&index=" + consulIndex;
 			}
@@ -110,7 +111,7 @@ class ConfigUpdater implements Runnable {
 			log.error("Error occurred while retrieving/publishing new config from Consul: " + e.getMessage(), e);
 		}
 		finally {
-			ConfigUpdater task = new ConfigUpdater(executor, httpClient, consulHost, consulIndex, identifier,
+			ConfigUpdater task = new ConfigUpdater(executor, httpClient, consulURI, consulIndex, identifier,
 					objectMapper, config, listener);
 
 			executor.schedule(task, timeout, TimeUnit.MILLISECONDS);

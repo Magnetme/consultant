@@ -1,20 +1,5 @@
 package me.magnet.consultant;
 
-import static me.magnet.consultant.HttpUtils.createStatus;
-import static me.magnet.consultant.HttpUtils.toJson;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.io.IOException;
-import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.SettableFuture;
 import me.magnet.consultant.Consultant.Builder.Agent;
@@ -26,6 +11,17 @@ import org.apache.http.message.BasicHeader;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.io.IOException;
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import static me.magnet.consultant.HttpUtils.*;
+import static org.junit.Assert.*;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.*;
 
 public class ConsultantTest {
 
@@ -258,6 +254,15 @@ public class ConsultantTest {
 
 		ServiceIdentifier id = new ServiceIdentifier("oauth", "eu-central", "web-1", "master");
 		assertEquals(id, consultant.getServiceIdentifier());
+	}
+
+	@Test
+	public void verifyHostPortSettingsAreRespected() throws Exception {
+		consultant = Consultant.builder()
+							   .withConsulHostPort("http://localhost",9500)
+							   .usingHttpClient(httpBuilder.create())
+							   .build();
+		assertEquals("http://localhost:9500", consultant.getConsulHost());
 	}
 
 	@Test

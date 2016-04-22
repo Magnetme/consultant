@@ -1,35 +1,11 @@
 package me.magnet.consultant;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Strings.isNullOrEmpty;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.InetSocketAddress;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
-import com.google.common.collect.SetMultimap;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -42,6 +18,22 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Strings.isNullOrEmpty;
 
 /**
  * The Consultant class allows you to retrieve the configuration for your application from Consul, and at the same
@@ -56,6 +48,9 @@ public class Consultant {
 	 * Allows you to build a custom Consultant object.
 	 */
 	public static class Builder {
+
+		private static final String CONSUL_DEFAULT_HOST = "http://localhost";
+		private static final int CONSUL_DEFAULT_PORT = 8500;
 
 		@JsonIgnoreProperties(ignoreUnknown = true)
 		public static class Agent {
@@ -109,6 +104,7 @@ public class Consultant {
 		private final Set<ConfigListener> configListeners;
 
 		private String host;
+		private int port;
 		private Properties properties;
 		private boolean pullConfig;
 
@@ -117,6 +113,8 @@ public class Consultant {
 		private String hostname;
 		private String instanceName;
 		private String healthEndpoint;
+
+		private URI consulURI;
 
 
 		private Builder() {
@@ -154,7 +152,21 @@ public class Consultant {
 
 		/**
 		 * Specifies where the Consul REST API can be reached on. Alternatively you can specify this through the
-		 * environment variable <code>CONSUL_HOST=http://localhost</code>.
+		 * environment variable <code>CONSUL_HOST=http://localhost:8500</code>.
+		 *
+		 * @param host The host where the Consul REST API can be found.
+		 * @param port The port where the Consul REST API is listening on.
+		 * @return The Builder instance.
+		 */
+		public Builder withConsulHostPort(String host,int port) {
+            this.host = host;
+			this.port = port;
+			return this;
+		}
+
+		/**
+		 * Specifies where the Consul REST API can be reached on. Alternatively you can specify this through the
+		 * environment variable <code>CONSUL_HOST=http://localhost</code>. The default port (8500) is used.
 		 *
 		 * @param host The host where the Consul REST API can be found.
 		 * @return The Builder instance.
@@ -325,8 +337,17 @@ public class Consultant {
 			if (isNullOrEmpty(host)) {
 				host = fromEnvironment("CONSUL_HOST");
 				if (isNullOrEmpty(host)) {
-					host = "http://localhost:8500";
+					host = CONSUL_DEFAULT_HOST + ":" + CONSUL_DEFAULT_PORT;
 				}
+			}
+			try {
+				if (port == 0) {
+					consulURI = new URI(host);
+				} else {
+					consulURI = new URI(host + ":" + port);
+				}
+			} catch (URISyntaxException e) {
+				throw new RuntimeException(host + "is an invalid uri");
 			}
 
 			serviceName = Optional.ofNullable(serviceName).orElse(fromEnvironment("SERVICE_NAME"));
@@ -354,7 +375,7 @@ public class Consultant {
 						.build();
 			}
 
-			try (CloseableHttpResponse response = http.execute(new HttpGet(host + "/v1/agent/self"))) {
+			try (CloseableHttpResponse response = http.execute(new HttpGet(consulURI + "/v1/agent/self"))) {
 				HttpEntity entity = response.getEntity();
 				Agent agent = mapper.readValue(entity.getContent(), Agent.class);
 				Config config = agent.getConfig();
@@ -371,7 +392,7 @@ public class Consultant {
 			}
 
 			ServiceIdentifier id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName);
-			Consultant consultant = new Consultant(executor, mapper, host, id, settingListeners, configListeners, validator,
+			Consultant consultant = new Consultant(executor, mapper, consulURI, id, settingListeners, configListeners, validator,
 					http, pullConfig, healthEndpoint);
 
 			consultant.init(properties);
@@ -403,7 +424,7 @@ public class Consultant {
 	private final AtomicBoolean registered;
 	private final CloseableHttpClient http;
 	private final ScheduledExecutorService executor;
-	private final String host;
+	private final URI consulURI;
 	private final ServiceIdentifier id;
 	private final ObjectMapper mapper;
 	private final ConfigValidator validator;
@@ -414,7 +435,7 @@ public class Consultant {
 	private final Multimap<String, SettingListener> settingListeners;
 	private final Set<ConfigListener> configListeners;
 
-	private Consultant(ScheduledExecutorService executor, ObjectMapper mapper, String host,
+	private Consultant(ScheduledExecutorService executor, ObjectMapper mapper, URI consulURI,
 			ServiceIdentifier identifier, SetMultimap<String, SettingListener> settingListeners,
 			Set<ConfigListener> configListeners, ConfigValidator validator, CloseableHttpClient http,
 			boolean pullConfig, String healthEndpoint) {
@@ -425,7 +446,7 @@ public class Consultant {
 		this.mapper = mapper;
 		this.validator = validator;
 		this.executor = executor;
-		this.host = host;
+		this.consulURI = consulURI;
 		this.id = identifier;
 		this.pullConfig = pullConfig;
 		this.validated = new Properties();
@@ -440,7 +461,7 @@ public class Consultant {
 		}
 
 		log.info("Fetching initial configuration from Consul for serviceID: {}", id);
-		ConfigUpdater poller = new ConfigUpdater(executor, http, host, null, id, mapper, null, (properties) -> {
+		ConfigUpdater poller = new ConfigUpdater(executor, http, consulURI, null, id, mapper, null, (properties) -> {
 			if (validator == null) {
 				updateValidatedConfig(properties);
 			}
@@ -472,7 +493,7 @@ public class Consultant {
 			return;
 		}
 
-		String url = host + "/v1/agent/service/register";
+		String url = consulURI + "/v1/agent/service/register";
 		log.info("Registering service with Consul: {}", id);
 
 		try {
@@ -509,7 +530,7 @@ public class Consultant {
 		}
 
 		String serviceId = id.getInstance().get();
-		String url = host + "/v1/agent/service/deregister/" + serviceId;
+		String url = consulURI + "/v1/agent/service/deregister/" + serviceId;
 		log.info("Deregistering service from Consul: {}", id);
 
 		HttpDelete request = new HttpDelete(url);
@@ -530,7 +551,7 @@ public class Consultant {
 	}
 
 	public List<ServiceInstance> list(String serviceName) {
-		String url = host + "/v1/health/service/" + serviceName + "?passing&near=_agent";
+		String url = consulURI + "/v1/health/service/" + serviceName + "?passing&near=_agent";
 
 		HttpGet request = new HttpGet(url);
 		request.setHeader("User-Agent", "Consultant");
@@ -583,7 +604,7 @@ public class Consultant {
 		if (changes.isEmpty()) {
 			return;
 		}
-		
+
 		for (ConfigListener listener : configListeners) {
 			listener.onConfigUpdate(validated);
 		}
@@ -642,7 +663,7 @@ public class Consultant {
 	 * otherwise specified in the Builder or environment variables.
 	 */
 	public String getConsulHost() {
-		return host;
+		return consulURI.toString();
 	}
 
 	/**
