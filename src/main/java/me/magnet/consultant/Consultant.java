@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
+import com.google.common.base.Strings;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -122,6 +124,7 @@ public class Consultant {
 		private String hostname;
 		private String instanceName;
 		private String healthEndpoint;
+		private Set tags;
 
 		private URI consulURI;
 
@@ -132,6 +135,7 @@ public class Consultant {
 			this.properties = new Properties();
 			this.pullConfig = true;
 			this.healthEndpoint = "/_health";
+			this.tags = Sets.newHashSet();
 		}
 
 		/**
@@ -235,6 +239,13 @@ public class Consultant {
 			this.datacenter = datacenter;
 			this.hostname = hostname;
 			this.instanceName = instanceName;
+			return this;
+		}
+
+		public Builder withTag(String tag) {
+			if ( tag != null) {
+				this.tags.add(tag);
+			}
 			return this;
 		}
 
@@ -364,6 +375,7 @@ public class Consultant {
 			instanceName = Optional.ofNullable(instanceName)
 					.orElse(Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
 							.orElse(UUID.randomUUID().toString()));
+			Arrays.stream(Strings.nullToEmpty(fromEnvironment("SERVICE_TAGS")).split(",")).forEach((tag) -> tags.add(tag));
 
 			if (mapper == null) {
 				mapper = new ObjectMapper();
@@ -399,7 +411,7 @@ public class Consultant {
 				throw new RuntimeException("Could not fetch agent details from Consul.", e);
 			}
 
-			ServiceIdentifier id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName);
+			ServiceIdentifier id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName, tags);
 			Consultant consultant = new Consultant(executor, mapper, consulURI, id, settingListeners, configListeners, validator,
 					http, pullConfig, healthEndpoint);
 
@@ -509,7 +521,7 @@ public class Consultant {
 			String serviceName = id.getServiceName();
 			String serviceHost = id.getHostName().get();
 			Check check = new Check("http://" + serviceHost + ":" + port + healthEndpoint, HEALTH_CHECK_INTERVAL);
-			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, serviceHost, port, check);
+			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, serviceHost, port, check, id.getTags());
 			String serialized = mapper.writeValueAsString(registration);
 
 			HttpPut request = new HttpPut(url);
