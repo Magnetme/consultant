@@ -33,6 +33,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpEntity;
@@ -243,9 +244,9 @@ public class Consultant {
 		}
 
 		public Builder withTag(String tag) {
-			if ( tag != null) {
-				this.tags.add(tag);
-			}
+			Preconditions.checkArgument(!Strings.isNullOrEmpty(tag), "enter a non-empty tag name");
+
+			this.tags.add(tag);
 			return this;
 		}
 
@@ -375,7 +376,9 @@ public class Consultant {
 			instanceName = Optional.ofNullable(instanceName)
 					.orElse(Optional.ofNullable(fromEnvironment("SERVICE_INSTANCE"))
 							.orElse(UUID.randomUUID().toString()));
-			Arrays.stream(Strings.nullToEmpty(fromEnvironment("SERVICE_TAGS")).split(",")).forEach((tag) -> tags.add(tag));
+			Arrays.stream(Strings.nullToEmpty(fromEnvironment("SERVICE_TAGS")).split(","))
+					.filter((t) -> !Strings.isNullOrEmpty(t))
+					.forEach(tags::add);
 
 			if (mapper == null) {
 				mapper = new ObjectMapper();

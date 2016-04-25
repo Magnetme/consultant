@@ -138,6 +138,7 @@ public class ServiceIdentifier {
 		getDatacenter().ifPresent(dc -> descriptors.add("dc=" + dc));
 		getHostName().ifPresent(host -> descriptors.add("host=" + host));
 		getInstance().ifPresent(instance -> descriptors.add("instance=" + instance));
+		getTags().stream().forEach((tag) -> descriptors.add("tag=" + tag));
 
 		StringBuilder builder = new StringBuilder(serviceName);
 		if (!descriptors.isEmpty()) {

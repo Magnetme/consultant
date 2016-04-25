@@ -307,6 +307,23 @@ public class ConsultantTest {
 	}
 
 	@Test
+	public void verifyEmptyTagsDoNotFail() throws Exception {
+		System.setProperty("CONSUL_HOST", "http://localhost");
+		System.setProperty("SERVICE_NAME", "oauth");
+		System.setProperty("SERVICE_DC", "eu-central");
+		System.setProperty("SERVICE_HOST", "web-1");
+		System.setProperty("SERVICE_INSTANCE", "master");
+		System.setProperty("SERVICE_TAGS", "");
+
+		consultant = Consultant.builder()
+				.usingHttpClient(httpBuilder.create())
+				.build();
+
+		ServiceIdentifier id = new ServiceIdentifier("oauth", "eu-central", "web-1", "master");
+		assertEquals(id, consultant.getServiceIdentifier());
+	}
+
+	@Test
 	public void verifyConfigListenerCanBeRemoved() throws Exception {
 		ConfigListener listener = System.out::println;
 		consultant = Consultant.builder()
