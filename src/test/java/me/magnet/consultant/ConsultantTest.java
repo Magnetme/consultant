@@ -1,5 +1,20 @@
 package me.magnet.consultant;
 
+import static me.magnet.consultant.HttpUtils.createStatus;
+import static me.magnet.consultant.HttpUtils.toJson;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.io.IOException;
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.SettableFuture;
 import me.magnet.consultant.Consultant.Builder.Agent;
@@ -11,17 +26,6 @@ import org.apache.http.message.BasicHeader;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.io.IOException;
-import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
-import static me.magnet.consultant.HttpUtils.*;
-import static org.junit.Assert.*;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.*;
 
 public class ConsultantTest {
 
@@ -257,12 +261,36 @@ public class ConsultantTest {
 	}
 
 	@Test
-	public void verifyHostPortSettingsAreRespected() throws Exception {
+	public void verifyConsulHostDefaultsToPort8500() throws Exception {
 		consultant = Consultant.builder()
-							   .withConsulHostPort("http://localhost",9500)
-							   .usingHttpClient(httpBuilder.create())
-							   .build();
-		assertEquals("http://localhost:9500", consultant.getConsulHost());
+				.identifyAs("oauth")
+				.usingHttpClient(httpBuilder.create())
+				.withConsulHost("localhost")
+				.build();
+
+		assertEquals("http://localhost:8500", consultant.getConsulHost());
+	}
+
+	@Test
+	public void verifyConsulHostDefaultsToHttp() throws Exception {
+		consultant = Consultant.builder()
+				.identifyAs("oauth")
+				.usingHttpClient(httpBuilder.create())
+				.withConsulHost("localhost:8501")
+				.build();
+
+		assertEquals("http://localhost:8501", consultant.getConsulHost());
+	}
+
+	@Test
+	public void verifyConsulHostWithSchemeDoesNotDefaultToDifferentPort() throws Exception {
+		consultant = Consultant.builder()
+				.identifyAs("oauth")
+				.usingHttpClient(httpBuilder.create())
+				.withConsulHost("http://localhost")
+				.build();
+
+		assertEquals("http://localhost", consultant.getConsulHost());
 	}
 
 	@Test
