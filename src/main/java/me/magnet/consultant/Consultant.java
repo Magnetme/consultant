@@ -9,6 +9,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -559,7 +560,7 @@ public class Consultant {
 	}
 
 	public List<ServiceInstance> list(String serviceName) {
-		String url = consulUri + "/v1/health/service/" + serviceName + "?passing&near=_agent";
+		String url = consulUri + "/v1/health/service/" + serviceName + "?passing";
 
 		HttpGet request = new HttpGet(url);
 		request.setHeader("User-Agent", "Consultant");
@@ -567,7 +568,11 @@ public class Consultant {
 			int statusCode = response.getStatusLine().getStatusCode();
 			if (statusCode >= 200 && statusCode < 400) {
 				InputStream content = response.getEntity().getContent();
-				return mapper.readValue(content, new TypeReference<List<ServiceInstance>>() {});
+				List<ServiceInstance> instanceLocations =
+						mapper.readValue(content, new TypeReference<List<ServiceInstance>>() {
+						});
+				Collections.shuffle(instanceLocations);
+				return instanceLocations;
 			}
 			log.error("Could not locate service: " + serviceName + ", status: " + statusCode);
 			throw new ConsultantException("Could not locate service: " + serviceName + ". Consul returned: " + statusCode);
