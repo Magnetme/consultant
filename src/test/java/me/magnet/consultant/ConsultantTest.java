@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.SettableFuture;
 import me.magnet.consultant.Consultant.Builder.Agent;
 import me.magnet.consultant.Consultant.Builder.Config;
@@ -26,6 +27,8 @@ import org.apache.http.message.BasicHeader;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.Set;
 
 public class ConsultantTest {
 
@@ -60,6 +63,7 @@ public class ConsultantTest {
 				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
+				.withTag("test")
 				.onValidConfig(future::set)
 				.build();
 
@@ -83,6 +87,7 @@ public class ConsultantTest {
 				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
+				.withTag("test")
 				.onValidConfig(future::set)
 				.validateConfigWith((config) -> {
 					throw new IllegalArgumentException("Config is invalid");
@@ -108,6 +113,7 @@ public class ConsultantTest {
 				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
+				.withTag("test")
 				.onValidConfig(future::set)
 				.build();
 
@@ -132,6 +138,7 @@ public class ConsultantTest {
 				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
+				.withTag("test")
 				.onSettingUpdate("some.key", (key, oldValue, newValue) -> {
 					future.set(Triple.of(key, oldValue, newValue));
 				})
@@ -165,6 +172,7 @@ public class ConsultantTest {
 				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
+				.withTag("test")
 				.onSettingUpdate("some.key", (key, oldValue, newValue) -> {
 					if (oldValue != null) {
 						future.set(Triple.of(key, oldValue, newValue));
@@ -251,12 +259,17 @@ public class ConsultantTest {
 		System.setProperty("SERVICE_DC", "eu-central");
 		System.setProperty("SERVICE_HOST", "web-1");
 		System.setProperty("SERVICE_INSTANCE", "master");
+		System.setProperty("SERVICE_TAGS", "gitsha,production");
 
 		consultant = Consultant.builder()
 				.usingHttpClient(httpBuilder.create())
 				.build();
 
-		ServiceIdentifier id = new ServiceIdentifier("oauth", "eu-central", "web-1", "master");
+		Set<String> tags = Sets.newHashSet();
+		tags.add("production");
+		tags.add("gitsha");
+
+		ServiceIdentifier id = new ServiceIdentifier("oauth", "eu-central", "web-1", "master", tags);
 		assertEquals(id, consultant.getServiceIdentifier());
 	}
 
@@ -291,6 +304,23 @@ public class ConsultantTest {
 				.build();
 
 		assertEquals("http://localhost", consultant.getConsulHost());
+	}
+
+	@Test
+	public void verifyEmptyTagsDoNotFail() throws Exception {
+		System.setProperty("CONSUL_HOST", "http://localhost");
+		System.setProperty("SERVICE_NAME", "oauth");
+		System.setProperty("SERVICE_DC", "eu-central");
+		System.setProperty("SERVICE_HOST", "web-1");
+		System.setProperty("SERVICE_INSTANCE", "master");
+		System.setProperty("SERVICE_TAGS", "");
+
+		consultant = Consultant.builder()
+				.usingHttpClient(httpBuilder.create())
+				.build();
+
+		ServiceIdentifier id = new ServiceIdentifier("oauth", "eu-central", "web-1", "master");
+		assertEquals(id, consultant.getServiceIdentifier());
 	}
 
 	@Test

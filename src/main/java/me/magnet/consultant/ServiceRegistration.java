@@ -1,5 +1,7 @@
 package me.magnet.consultant;
 
+import java.util.Set;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -24,12 +26,12 @@ public class ServiceRegistration {
 	@JsonProperty("Check")
 	private final Check check;
 
-	ServiceRegistration(String id, String name, String address, int port, Check check, String... tags) {
+	ServiceRegistration(String id, String name, String address, int port, Check check, Set<String> tags) {
 		this.id = id;
 		this.name = name;
 		this.address = address;
 		this.port = port;
-		this.tags = tags;
+		this.tags = tags.toArray(new String[tags.size()]);
 		this.check = check;
 	}
 

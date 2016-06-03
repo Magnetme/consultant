@@ -6,9 +6,11 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
@@ -18,17 +20,24 @@ public class ServiceIdentifier {
 	private final Optional<String> datacenter;
 	private final Optional<String> hostName;
 	private final Optional<String> instance;
+	private final Set<String> tags;
 
 	ServiceIdentifier(String serviceName, String datacenter, String hostName, String instance) {
+		this(serviceName, datacenter, hostName, instance, Sets.newHashSet());
+	}
+
+	ServiceIdentifier(String serviceName, String datacenter, String hostName, String instance, Set<String> tags) {
 		checkArgument(!isNullOrEmpty(serviceName), "You must specify a 'serviceName'!");
 		checkArgument(datacenter == null || !datacenter.isEmpty(), "You cannot specify 'datacenter' as empty String!");
 		checkArgument(hostName == null || !hostName.isEmpty(), "You cannot specify 'hostName' as empty String!");
 		checkArgument(instance == null || !instance.isEmpty(), "You cannot specify 'instance' as empty String!");
+		checkArgument(tags != null, "You cannot specify 'tags' as a null Set!");
 
 		this.datacenter = Optional.ofNullable(datacenter);
 		this.hostName = Optional.ofNullable(hostName);
 		this.serviceName = serviceName;
 		this.instance = Optional.ofNullable(instance);
+		this.tags = tags;
 	}
 
 	public String getServiceName() {
@@ -45,6 +54,10 @@ public class ServiceIdentifier {
 
 	public Optional<String> getInstance() {
 		return instance;
+	}
+
+	public Set<String> getTags() {
+		return tags;
 	}
 
 	public boolean appliesTo(ServiceIdentifier serviceIdentifier) {
@@ -102,6 +115,7 @@ public class ServiceIdentifier {
 					.append(datacenter, id.datacenter)
 					.append(hostName, id.hostName)
 					.append(instance, id.instance)
+					.append(tags, id.tags)
 					.isEquals();
 		}
 		return false;
@@ -114,6 +128,7 @@ public class ServiceIdentifier {
 				.append(datacenter)
 				.append(hostName)
 				.append(instance)
+				.append(tags)
 				.toHashCode();
 	}
 
@@ -123,6 +138,7 @@ public class ServiceIdentifier {
 		getDatacenter().ifPresent(dc -> descriptors.add("dc=" + dc));
 		getHostName().ifPresent(host -> descriptors.add("host=" + host));
 		getInstance().ifPresent(instance -> descriptors.add("instance=" + instance));
+		descriptors.add("tags=[" + getTags().stream().collect(Collectors.joining(",")) + "]");
 
 		StringBuilder builder = new StringBuilder(serviceName);
 		if (!descriptors.isEmpty()) {

@@ -3,6 +3,9 @@ package me.magnet.consultant;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Set;
+
+import com.google.common.collect.Sets;
 import nl.jqno.equalsverifier.EqualsVerifier;
 import nl.jqno.equalsverifier.Warning;
 import org.junit.Test;
@@ -136,6 +139,28 @@ public class ServiceIdentifierTest {
 
 		assertFalse(id2.appliesTo(id1));
 		assertFalse(id1.appliesTo(id2));
+	}
+
+	@Test public void verifyEmptyTagSet() {
+		ServiceIdentifier id = new ServiceIdentifier("oauth", null, null, null);
+		ServiceIdentifier id2 = new ServiceIdentifier("oauth", null, null, null, Sets.newHashSet());
+
+		assertTrue(id.getTags() != null);
+		assertTrue(id2.getTags() != null);
+		assertTrue(id.getTags().size() == 0);
+		assertTrue(id2.getTags().size() == 0);
+	}
+
+	@Test public void verifyNonEmptyTagSet() {
+		Set<String> tags = Sets.newHashSet();
+		tags.add("oauth");
+		tags.add("production-traffic");
+		ServiceIdentifier id = new ServiceIdentifier("oauth", null, null, null, tags);
+
+		assertTrue(id.getTags() != null);
+		assertTrue(id.getTags().size() == 2);
+		assertTrue(id.getTags().contains("oauth"));
+		assertTrue(id.getTags().contains("production-traffic"));
 	}
 
 	@Test
