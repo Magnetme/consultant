@@ -4,7 +4,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -24,7 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
@@ -440,6 +438,7 @@ public class Consultant {
 	private final boolean pullConfig;
 	private final String healthEndpoint;
 
+	private final ServiceLocator serviceLocator;
 	private final Multimap<String, SettingListener> settingListeners;
 	private final Set<ConfigListener> configListeners;
 
@@ -451,6 +450,7 @@ public class Consultant {
 		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
 		this.configListeners = Sets.newConcurrentHashSet(configListeners);
+		this.serviceLocator = new ServiceLocator(consulUri, mapper, http);
 		this.mapper = mapper;
 		this.validator = validator;
 		this.executor = executor;
@@ -559,27 +559,19 @@ public class Consultant {
 	}
 
 	public List<ServiceInstance> list(String serviceName) {
-		String url = consulUri + "/v1/health/service/" + serviceName + "?passing&near=_agent";
+		return list(serviceName, RoutingStrategies.RANDOMIZED_WEIGHTED_DISTANCE);
+	}
 
-		HttpGet request = new HttpGet(url);
-		request.setHeader("User-Agent", "Consultant");
-		try (CloseableHttpResponse response = http.execute(request)) {
-			int statusCode = response.getStatusLine().getStatusCode();
-			if (statusCode >= 200 && statusCode < 400) {
-				InputStream content = response.getEntity().getContent();
-				return mapper.readValue(content, new TypeReference<List<ServiceInstance>>() {});
-			}
-			log.error("Could not locate service: " + serviceName + ", status: " + statusCode);
-			throw new ConsultantException("Could not locate service: " + serviceName + ". Consul returned: " + statusCode);
-		}
-		catch (IOException | RuntimeException e) {
-			log.error("Could not locate service: " + serviceName);
-			throw new ConsultantException(e);
-		}
+	public List<ServiceInstance> list(String serviceName, RoutingStrategy routingStrategy) {
+		return routingStrategy.listInstances(serviceLocator, serviceName);
 	}
 
 	public Optional<InetSocketAddress> locate(String serviceName) {
-		return list(serviceName).stream()
+		return locate(serviceName, RoutingStrategies.RANDOMIZED_WEIGHTED_DISTANCE);
+	}
+
+	public Optional<InetSocketAddress> locate(String serviceName, RoutingStrategy routingStrategy) {
+		return list(serviceName, routingStrategy).stream()
 				.findFirst()
 				.map(instance -> {
 					Node node = instance.getNode();
