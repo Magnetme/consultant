@@ -13,14 +13,20 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+/**
+ * A class which has a set of RoutingStrategies which can be used for client-side load balancing.
+ */
 public class RoutingStrategies {
 
+	/**
+	 * A RoutingStrategy which returns service instances in order of network distance (order from nearest to farthest).
+	 */
 	public static final RoutingStrategy NETWORK_DISTANCE = (locator, serviceName) ->
-			new ServiceLocations(() -> locator.listInstances(serviceName).iterator(), () -> {
+			new ServiceLocator(() -> locator.listInstances(serviceName).iterator(), () -> {
 				List<String> datacenters = locator.listDatacenters();
 				Collections.reverse(datacenters);
 
-				ServiceLocations current = null;
+				ServiceLocator current = null;
 
 				for (String datacenter : datacenters) {
 					boolean sameDatacenter = locator.getDatacenter()
@@ -32,24 +38,34 @@ public class RoutingStrategies {
 					}
 
 					if (current == null) {
-						current = new ServiceLocations(() -> locator.listInstances(serviceName, datacenter).iterator());
+						current = new ServiceLocator(() -> locator.listInstances(serviceName, datacenter).iterator());
 					}
 					else {
-						current = new ServiceLocations(() -> locator.listInstances(serviceName, datacenter).iterator(), current);
+						current = new ServiceLocator(() -> locator.listInstances(serviceName, datacenter).iterator(),
+								current);
 					}
 				}
 
 				return current;
 			});
 
+	/**
+	 * Creates a new RoutingStrategy which returns service instances in a randomized order but prefers closer service
+	 * instances (in terms of network distance). The closest instance has a specified chance of being emitted first,
+	 * and if that chance is not met, the second closest has that same chance of being emitted, and if that chance is
+	 * not met... and so on.
+	 *
+	 * @param threshold The chance of emitting a particular service instance.
+	 * @return The RoutingStrategy with the specified chance.
+	 */
 	public static RoutingStrategy randomizedWeightedDistance(double threshold) {
 		return new RoutingStrategy() {
 
 			private final Random random = new Random();
 
 			@Override
-			public ServiceLocations locateInstances(ServiceLocator serviceLocator, String serviceName) {
-				return NETWORK_DISTANCE.locateInstances(serviceLocator, serviceName)
+			public ServiceLocator locateInstances(ServiceInstanceBackend serviceInstanceBackend, String serviceName) {
+				return NETWORK_DISTANCE.locateInstances(serviceInstanceBackend, serviceName)
 						.map(iterator -> {
 							List<ServiceInstance> instances = Lists.newArrayList(iterator);
 							if (instances.size() <= 1) {
@@ -77,15 +93,24 @@ public class RoutingStrategies {
 		};
 	}
 
+	/**
+	 * A RoutingStrategy which returns service instances in a randomized order of network distance (order from nearest
+	 * to farthest). Closer instances have a better chance at being emitted.
+	 */
 	public static final RoutingStrategy RANDOMIZED_WEIGHTED_DISTANCE = randomizedWeightedDistance(0.5);
 
+	/**
+	 * A RoutingStrategy which returns service instances in a round robin manner. It ensures that any ServiceLocator
+	 * emitted through this RoutingStrategy doesn't emit the same instance at the same time in this JVM, but instead
+	 * emits a different not-yet emitted (for that particular ServiceLocator) service instance.
+	 */
 	public static final RoutingStrategy ROUND_ROBIN = new RoutingStrategy() {
 
 		private final Map<String, ServiceInstance> lastRequested = Maps.newConcurrentMap();
 
 		@Override
-		public ServiceLocations locateInstances(ServiceLocator serviceLocator, String serviceName) {
-			return NETWORK_DISTANCE.locateInstances(serviceLocator, serviceName)
+		public ServiceLocator locateInstances(ServiceInstanceBackend serviceInstanceBackend, String serviceName) {
+			return NETWORK_DISTANCE.locateInstances(serviceInstanceBackend, serviceName)
 					.map(iterator -> {
 						// Ensure the instances are always sorted the same way.
 						List<ServiceInstance> instances = Lists.newArrayList(iterator);
@@ -129,9 +154,11 @@ public class RoutingStrategies {
 		public void reset() {
 			lastRequested.clear();
 		}
-
 	};
 
+	/**
+	 * A RoutingStrategy which emits the service instances in a random order.
+	 */
 	public static final RoutingStrategy RANDOMIZED = (serviceLocator, serviceName) ->
 			NETWORK_DISTANCE.locateInstances(serviceLocator, serviceName)
 					.map(iterator -> {
@@ -139,7 +166,6 @@ public class RoutingStrategies {
 						Collections.shuffle(instances);
 						return instances.iterator();
 					});
-
 
 	private RoutingStrategies() {
 		// Prevent instantiation.

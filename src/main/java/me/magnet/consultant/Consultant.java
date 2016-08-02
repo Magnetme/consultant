@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
@@ -438,7 +439,7 @@ public class Consultant {
 	private final boolean pullConfig;
 	private final String healthEndpoint;
 
-	private final ServiceLocator serviceLocator;
+	private final ServiceInstanceBackend serviceInstanceBackend;
 	private final Multimap<String, SettingListener> settingListeners;
 	private final Set<ConfigListener> configListeners;
 
@@ -450,7 +451,7 @@ public class Consultant {
 		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
 		this.configListeners = Sets.newConcurrentHashSet(configListeners);
-		this.serviceLocator = new ServiceLocator(identifier.getDatacenter(), consulUri, mapper, http);
+		this.serviceInstanceBackend = new ServiceInstanceBackend(identifier.getDatacenter(), consulUri, mapper, http);
 		this.mapper = mapper;
 		this.validator = validator;
 		this.executor = executor;
@@ -558,20 +559,57 @@ public class Consultant {
 		}
 	}
 
-	public ServiceLocations list(String serviceName) {
-		return list(serviceName, RoutingStrategies.RANDOMIZED_WEIGHTED_DISTANCE);
+	/**
+	 * Lists all service instances of a particular service known to Consul ordered by network distance. This method is
+	 * scheduled for removal in the next major release. Avoid this method if possible due to possible performance
+	 * issues
+	 * when having a multi datacenter Consul cluster. Use the locateAll() method instead.
+	 */
+	@Deprecated
+	public List<ServiceInstance> list(String serviceName) {
+		Optional<ServiceInstance> instance;
+		List<ServiceInstance> instances = Lists.newArrayList();
+		ServiceLocator locator = locateAll(serviceName, RoutingStrategies.NETWORK_DISTANCE);
+		while ((instance = locator.next()).isPresent()) {
+			instances.add(instance.get());
+		}
+		return instances;
 	}
 
-	public ServiceLocations list(String serviceName, RoutingStrategy routingStrategy) {
-		return routingStrategy.locateInstances(serviceLocator, serviceName);
+	/**
+	 * Returns a ServiceLocator with which services matching the specified service name can be found. By default uses
+	 * the "Randomized Weighted Distance" RoutingStrategy.
+	 *
+	 * @param serviceName The name of the service to locate instances of.
+	 *
+	 * @return The constructed ServiceLocator.
+	 */
+	public ServiceLocator locateAll(String serviceName) {
+		return locateAll(serviceName, RoutingStrategies.RANDOMIZED_WEIGHTED_DISTANCE);
 	}
 
+	/**
+	 * Returns a ServiceLocator with which services matching the specified service name can be found.
+	 *
+	 * @param serviceName     The name of the service to locate instances of.
+	 * @param routingStrategy The RoutingStrategy to use to locate instances.
+	 *
+	 * @return The constructed ServiceLocator.
+	 */
+	public ServiceLocator locateAll(String serviceName, RoutingStrategy routingStrategy) {
+		return routingStrategy.locateInstances(serviceInstanceBackend, serviceName);
+	}
+
+	/**
+	 * Returns the closest service instance's InetSocketAddress.
+	 *
+	 * @param serviceName The name of the service to locate.
+	 *                       
+	 * @return An Optional containing the closest service instance's InetSocketAddress, or an empty Optional otherwise.
+	 */
+	@Deprecated
 	public Optional<InetSocketAddress> locate(String serviceName) {
-		return locate(serviceName, RoutingStrategies.RANDOMIZED_WEIGHTED_DISTANCE);
-	}
-
-	public Optional<InetSocketAddress> locate(String serviceName, RoutingStrategy routingStrategy) {
-		return list(serviceName, routingStrategy).next()
+		return locateAll(serviceName, RoutingStrategies.NETWORK_DISTANCE).next()
 				.map(instance -> {
 					Node node = instance.getNode();
 					Service service = instance.getService();
