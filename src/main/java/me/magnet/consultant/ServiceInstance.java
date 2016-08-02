@@ -30,4 +30,9 @@ public class ServiceInstance {
 		return service;
 	}
 
+	@Override
+	public String toString() {
+		return "[" + service.getService() + " - " + service.getId() + " @ " + node.getNode()  + "]";
+	}
+
 }

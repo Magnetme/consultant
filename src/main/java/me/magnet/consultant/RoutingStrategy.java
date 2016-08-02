@@ -1,9 +1,11 @@
 package me.magnet.consultant;
 
-import java.util.List;
-
 public interface RoutingStrategy {
 
-	List<ServiceInstance> listInstances(ServiceLocator serviceLocator, String serviceName);
+	ServiceLocations locateInstances(ServiceLocator serviceLocator, String serviceName);
+
+	default void reset() {
+		// Do nothing
+	}
 
 }

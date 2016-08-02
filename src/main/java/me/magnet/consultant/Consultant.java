@@ -450,7 +450,7 @@ public class Consultant {
 		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
 		this.configListeners = Sets.newConcurrentHashSet(configListeners);
-		this.serviceLocator = new ServiceLocator(consulUri, mapper, http);
+		this.serviceLocator = new ServiceLocator(identifier.getDatacenter(), consulUri, mapper, http);
 		this.mapper = mapper;
 		this.validator = validator;
 		this.executor = executor;
@@ -558,12 +558,12 @@ public class Consultant {
 		}
 	}
 
-	public List<ServiceInstance> list(String serviceName) {
+	public ServiceLocations list(String serviceName) {
 		return list(serviceName, RoutingStrategies.RANDOMIZED_WEIGHTED_DISTANCE);
 	}
 
-	public List<ServiceInstance> list(String serviceName, RoutingStrategy routingStrategy) {
-		return routingStrategy.listInstances(serviceLocator, serviceName);
+	public ServiceLocations list(String serviceName, RoutingStrategy routingStrategy) {
+		return routingStrategy.locateInstances(serviceLocator, serviceName);
 	}
 
 	public Optional<InetSocketAddress> locate(String serviceName) {
@@ -571,8 +571,7 @@ public class Consultant {
 	}
 
 	public Optional<InetSocketAddress> locate(String serviceName, RoutingStrategy routingStrategy) {
-		return list(serviceName, routingStrategy).stream()
-				.findFirst()
+		return list(serviceName, routingStrategy).next()
 				.map(instance -> {
 					Node node = instance.getNode();
 					Service service = instance.getService();
