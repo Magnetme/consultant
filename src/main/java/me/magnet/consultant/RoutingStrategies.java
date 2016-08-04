@@ -73,21 +73,25 @@ public class RoutingStrategies {
 								return instances.iterator();
 							}
 
-							/*
-							 * Pick the index of the first instance to try based on a random chance (0..1 value).
-							 * If the chance was < 0.5 then use the instance on index 0.
-							 * If the chance was >= 0.5 and < 0.75 then use the instance on index 1.
-							 * If the chance was >= 0.75 and < 0.875 then use the instance on index 2.
-							 * If the chance was >= 0.875 and < 0.9375 then use the instance on index 3.
-							 * Etc...
-							 */
-							int index = 0;
-							while (random.nextDouble() < threshold && index < instances.size() - 1) {
-								index++;
+							List<ServiceInstance> reordered = Lists.newArrayList();
+							while (!instances.isEmpty()) {
+								/*
+								 * Pick the index of the first instance to try based on a random chance (0..1 value).
+								 * If the chance was < 0.5 then use the instance on index 0.
+								 * If the chance was >= 0.5 and < 0.75 then use the instance on index 1.
+								 * If the chance was >= 0.75 and < 0.875 then use the instance on index 2.
+								 * If the chance was >= 0.875 and < 0.9375 then use the instance on index 3.
+								 * Etc...
+								 */
+								int index = 0;
+								while (random.nextDouble() < threshold && index < instances.size() - 1) {
+									index++;
+								}
+
+								reordered.add(instances.remove(index));
 							}
 
-							Collections.rotate(instances, index);
-							return instances.iterator();
+							return reordered.iterator();
 						});
 			}
 		};
