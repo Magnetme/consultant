@@ -43,6 +43,7 @@ class ConfigUpdater implements Runnable {
 	}
 
 	private static final Logger log = LoggerFactory.getLogger(ConfigUpdater.class);
+	private static final String shutdownMessage = "Connection pool shut down";
 
 	private static final String PREFIX = "config";
 
@@ -108,7 +109,12 @@ class ConfigUpdater implements Runnable {
 			}
 		}
 		catch (IOException | RuntimeException e) {
-			log.error("Error occurred while retrieving/publishing new config from Consul: " + e.getMessage(), e);
+			if (e instanceof IllegalStateException && e.getMessage().equals(shutdownMessage)) {
+				log.info("The service is being shutdown, could not get a new configuration");
+			}
+			else{
+				log.error("Error occurred while retrieving/publishing new config from Consul: " + e.getMessage(), e);
+			}
 		}
 		finally {
 			ConfigUpdater task = new ConfigUpdater(executor, httpClient, consulURI, consulIndex, identifier,
