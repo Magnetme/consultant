@@ -676,7 +676,11 @@ public class Consultant {
 		}
 
 		if (pullConfig && !executor.isShutdown()) {
-			MoreExecutors.shutdownAndAwaitTermination(executor, TERMINATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+			boolean shutDownTasks =
+					MoreExecutors.shutdownAndAwaitTermination(executor, TERMINATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+			if (!shutDownTasks) {
+				log.warn("Could not shut down all executor tasks!");
+			}
 		}
 
 		try {
