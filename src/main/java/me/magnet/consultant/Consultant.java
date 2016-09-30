@@ -666,11 +666,13 @@ public class Consultant {
 	 * @throws InterruptedException If it got interrupted while waiting for any open tasks
 	 */
 	public void shutdown() throws InterruptedException {
-		try {
-			deregisterService();
-		}
-		catch (ConsultantException e) {
-			log.error("Error occurred while deregistering", e);
+		if (registered.get()) {
+			try {
+				deregisterService();
+			}
+			catch (ConsultantException e) {
+				log.error("Error occurred while deregistering", e);
+			}
 		}
 
 		if (pullConfig && !executor.isShutdown()) {
