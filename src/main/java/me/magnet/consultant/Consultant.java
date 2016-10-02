@@ -31,6 +31,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -665,11 +666,21 @@ public class Consultant {
 	 * @throws InterruptedException If it got interrupted while waiting for any open tasks
 	 */
 	public void shutdown() throws InterruptedException {
-		try {
-			deregisterService();
+		if (registered.get()) {
+			try {
+				deregisterService();
+			}
+			catch (ConsultantException e) {
+				log.error("Error occurred while deregistering", e);
+			}
 		}
-		catch (ConsultantException e) {
-			log.error("Error occurred while deregistering", e);
+
+		if (pullConfig && !executor.isShutdown()) {
+			boolean shutDownTasks =
+					MoreExecutors.shutdownAndAwaitTermination(executor, TERMINATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+			if (!shutDownTasks) {
+				log.warn("Could not shut down all executor tasks!");
+			}
 		}
 
 		try {
@@ -679,20 +690,6 @@ public class Consultant {
 			log.error("Error occurred on shutdown: " + e.getMessage(), e);
 		}
 
-		if (pullConfig && !executor.isShutdown()) {
-			List<Runnable> runningTasks = executor.shutdownNow();
-			log.info("There are currently {} running tasks", runningTasks.size());
-			try {
-				boolean tasksKilled = executor.awaitTermination(TERMINATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-				if (!tasksKilled) {
-					log.warn("Could not kill tasks within timeout frame");
-				}
-			}
-			catch (InterruptedException e) {
-				log.error("Interrupted while waiting for tasks to finish");
-				throw e;
-			}
-		}
 	}
 
 	/**
