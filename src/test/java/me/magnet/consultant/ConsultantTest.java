@@ -84,6 +84,7 @@ public class ConsultantTest {
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth", "eu-central", "web-1", "master")
 				.onValidConfig(future::set)
+				.pullConfigFromConsul(false)
 				.validateConfigWith((config) -> {
 					throw new IllegalArgumentException("Config is invalid");
 				})
@@ -254,6 +255,7 @@ public class ConsultantTest {
 
 		consultant = Consultant.builder()
 				.usingHttpClient(httpBuilder.create())
+				.pullConfigFromConsul(false)
 				.build();
 
 		ServiceIdentifier id = new ServiceIdentifier("oauth", "eu-central", "web-1", "master");
@@ -266,6 +268,7 @@ public class ConsultantTest {
 				.identifyAs("oauth")
 				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("localhost")
+				.pullConfigFromConsul(false)
 				.build();
 
 		assertEquals("http://localhost:8500", consultant.getConsulHost());
@@ -277,6 +280,7 @@ public class ConsultantTest {
 				.identifyAs("oauth")
 				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("localhost:8501")
+				.pullConfigFromConsul(false)
 				.build();
 
 		assertEquals("http://localhost:8501", consultant.getConsulHost());
@@ -288,6 +292,7 @@ public class ConsultantTest {
 				.identifyAs("oauth")
 				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
+				.pullConfigFromConsul(false)
 				.build();
 
 		assertEquals("http://localhost", consultant.getConsulHost());
@@ -300,6 +305,7 @@ public class ConsultantTest {
 				.usingHttpClient(httpBuilder.create())
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth")
+				.pullConfigFromConsul(false)
 				.onValidConfig(listener)
 				.build();
 
@@ -315,6 +321,7 @@ public class ConsultantTest {
 				.withConsulHost("http://localhost")
 				.identifyAs("oauth")
 				.onSettingUpdate("some-key", listener)
+				.pullConfigFromConsul(false)
 				.build();
 
 		assertTrue(consultant.removeSettingListener("some-key", listener));
