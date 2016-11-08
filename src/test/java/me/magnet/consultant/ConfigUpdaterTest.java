@@ -57,7 +57,7 @@ public class ConfigUpdaterTest {
 		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
 		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
 		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("some-prefix/oauth/some.key", "some-value")));
 
 		when(http.execute(any())).thenReturn(response);
 
@@ -74,12 +74,12 @@ public class ConfigUpdaterTest {
 		CloseableHttpResponse response1 = mock(CloseableHttpResponse.class);
 		when(response1.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
 		when(response1.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("some-prefix/oauth/some.key", "some-value")));
 
 		CloseableHttpResponse response2 = mock(CloseableHttpResponse.class);
 		when(response2.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
 		when(response2.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response2.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-other-value")));
+		when(response2.getEntity()).thenReturn(toJson(ImmutableMap.of("some-prefix/oauth/some.key", "some-other-value")));
 
 		when(http.execute(any())).thenReturn(response1, response2);
 
@@ -101,8 +101,8 @@ public class ConfigUpdaterTest {
 		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
 		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
 		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/", "some-value",
-				"config/oauth/some.key", "some-value")));
+		when(response.getEntity()).thenReturn(toJson(ImmutableMap.of("some-prefix/oauth/", "some-value",
+				"some-prefix/oauth/some.key", "some-value")));
 
 		when(http.execute(any())).thenReturn(response);
 
@@ -119,7 +119,7 @@ public class ConfigUpdaterTest {
 		CloseableHttpResponse response1 = mock(CloseableHttpResponse.class);
 		when(response1.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
 		when(response1.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("config/oauth/some.key", "some-value")));
+		when(response1.getEntity()).thenReturn(toJson(ImmutableMap.of("some-prefix/oauth/some.key", "some-value")));
 
 		when(http.execute(any())).thenReturn(response1);
 

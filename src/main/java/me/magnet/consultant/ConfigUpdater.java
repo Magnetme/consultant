@@ -138,7 +138,7 @@ class ConfigUpdater implements Runnable {
 		Map<String, Setting> newConfig = Maps.newHashMap();
 
 		for (KeyValueEntry entry : entries) {
-			Path path = PathParser.parse(PREFIX, entry.getKey());
+			Path path = PathParser.parse(kvPrefix, entry.getKey());
 			if (path == null || path.getKey() == null) {
 				continue;
 			}
