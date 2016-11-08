@@ -118,6 +118,7 @@ public class Consultant {
 		private boolean pullConfig;
 
 		private String serviceName;
+		private String kvPrefix;
 		private String datacenter;
 		private String hostname;
 		private String instanceName;
@@ -170,6 +171,18 @@ public class Consultant {
 			this.host = host;
 			return this;
 		}
+
+        /**
+         * Allows the caller to specify the prefix when looking up the key value properties. This will default to
+         * {@code config} if not specified.
+         *
+         * @param kvPrefix the path prefix to be used when looking-up the properties.
+         * @return The Builder instance.
+         */
+		public Builder withKvPrefix(String kvPrefix) {
+            this.kvPrefix = kvPrefix;
+            return this;
+        }
 
 		/**
 		 * States the identify of this application. This is used to figure out what configuration settings apply
@@ -400,8 +413,8 @@ public class Consultant {
 			}
 
 			ServiceIdentifier id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName);
-			Consultant consultant = new Consultant(executor, mapper, consulURI, id, settingListeners, configListeners, validator,
-					http, pullConfig, healthEndpoint);
+			Consultant consultant = new Consultant(executor, mapper, consulURI, id, settingListeners, configListeners,
+                    validator, http, pullConfig, healthEndpoint, kvPrefix);
 
 			consultant.init(properties);
 			return consultant;
@@ -439,6 +452,7 @@ public class Consultant {
 	private final Properties validated;
 	private final boolean pullConfig;
 	private final String healthEndpoint;
+	private final String kvPrefix;
 
 	private final ServiceInstanceBackend serviceInstanceBackend;
 	private final Multimap<String, SettingListener> settingListeners;
@@ -447,7 +461,7 @@ public class Consultant {
 	private Consultant(ScheduledExecutorService executor, ObjectMapper mapper, URI consulUri,
 			ServiceIdentifier identifier, SetMultimap<String, SettingListener> settingListeners,
 			Set<ConfigListener> configListeners, ConfigValidator validator, CloseableHttpClient http,
-			boolean pullConfig, String healthEndpoint) {
+			boolean pullConfig, String healthEndpoint, String kvPrefix) {
 
 		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
@@ -462,6 +476,7 @@ public class Consultant {
 		this.validated = new Properties();
 		this.healthEndpoint = healthEndpoint;
 		this.http = http;
+        this.kvPrefix = kvPrefix;
 	}
 
 	private void init(Properties initProperties) {
@@ -484,7 +499,7 @@ public class Consultant {
 					log.warn("New config did not pass validation: " + e.getMessage(), e);
 				}
 			}
-		});
+		}, kvPrefix);
 
 		try {
 			executor.submit(poller).get();
