@@ -15,6 +15,7 @@ import java.net.URI;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -53,12 +54,13 @@ class ConfigUpdater implements Runnable {
 	private final ObjectMapper objectMapper;
 	private final Properties config;
 	private final ConfigListener listener;
+	private final String kvPrefix;
 
 	private String consulIndex;
 
 	ConfigUpdater(ScheduledExecutorService executor, CloseableHttpClient httpClient, URI consulURI,
 			String consulIndex, ServiceIdentifier identifier, ObjectMapper objectMapper,
-			Properties config, ConfigListener listener) {
+			Properties config, ConfigListener listener, String kvPrefix) {
 
 		this.httpClient = httpClient;
 		this.consulIndex = consulIndex;
@@ -67,14 +69,15 @@ class ConfigUpdater implements Runnable {
 		this.consulURI = consulURI;
 		this.identifier = identifier;
 		this.listener = listener;
-		this.config = config != null ? config : new Properties();
+		this.config = Optional.ofNullable(config).orElse(new Properties());
+		this.kvPrefix = Optional.ofNullable(kvPrefix).orElse(PREFIX);
 	}
 
 	@Override
 	public void run() {
 		long timeout = 500;
 		try {
-			String url = consulURI + "/v1/kv/" + PREFIX + "/" + identifier.getServiceName() + "/?recurse=true";
+			String url = consulURI + "/v1/kv/" + kvPrefix + "/" + identifier.getServiceName() + "/?recurse=true";
 			if (consulIndex != null) {
 				url += "&index=" + consulIndex;
 			}
@@ -112,7 +115,7 @@ class ConfigUpdater implements Runnable {
 		}
 		finally {
 			ConfigUpdater task = new ConfigUpdater(executor, httpClient, consulURI, consulIndex, identifier,
-					objectMapper, config, listener);
+					objectMapper, config, listener, kvPrefix);
 
 			executor.schedule(task, timeout, TimeUnit.MILLISECONDS);
 		}
@@ -135,7 +138,7 @@ class ConfigUpdater implements Runnable {
 		Map<String, Setting> newConfig = Maps.newHashMap();
 
 		for (KeyValueEntry entry : entries) {
-			Path path = PathParser.parse(PREFIX, entry.getKey());
+			Path path = PathParser.parse(kvPrefix, entry.getKey());
 			if (path == null || path.getKey() == null) {
 				continue;
 			}
