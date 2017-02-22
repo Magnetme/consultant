@@ -1,3 +1,5 @@
+[![Magnet.me Logo](https://cdn.magnet.me/images/logo-2015-full.svg)](https://magnet.me?ref=github-magnetme "Discover the best companies, jobs and internships at Magnet.me")
+
 # Consultant
 ###### Fetches your service's configuration from Consul, and subscribes to any changes.
 
