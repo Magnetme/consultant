@@ -6,8 +6,10 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.util.Date;
 
+import com.google.common.collect.ImmutableMap;
 import com.netflix.governator.configuration.AbstractObjectConfigurationProvider;
 import com.netflix.governator.configuration.ConfigurationKey;
+import com.netflix.governator.configuration.ConfigurationOwnershipPolicy;
 import com.netflix.governator.configuration.Property;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +24,9 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 
 	private final Consultant consultant;
 	private final DateFormat dateFormat;
+	private final ConfigurationOwnershipPolicy ownershipPolicy;
+	private final ImmutableMap<String, String> variables;
+
 
 	/**
 	 * Creates a new ConsultantConfigurationProvider.
@@ -29,7 +34,11 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 	 * @param consultant The Consultant to use to retrieve the configuration from Consul, and subscribe to updates.
 	 */
 	public ConsultantConfigurationProvider(Consultant consultant) {
-		this(consultant, DateFormat.getInstance());
+		this(consultant, DateFormat.getInstance(), defaultOwnership(consultant));
+	}
+
+	private static ConfigurationOwnershipPolicy defaultOwnership(Consultant consultant) {
+		return (key, variables) -> consultant.getProperties().containsKey(key.getKey(variables));
 	}
 
 	/**
@@ -39,8 +48,40 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 	 * @param dateFormat A custom DateFormat to use to parse Date's stored in Consul's config.
 	 */
 	public ConsultantConfigurationProvider(Consultant consultant, DateFormat dateFormat) {
+		this(consultant, dateFormat, defaultOwnership(consultant));
+	}
+
+	/**
+	 * Creates a new ConsultantConfigurationProvider.
+	 *
+	 * @param consultant      The Consultant to use to retrieve the configuration from Consul, and subscribe to
+	 *                        updates.
+	 * @param ownershipPolicy The policy for which this consultant instance holds keys
+	 */
+	public ConsultantConfigurationProvider(Consultant consultant, ConfigurationOwnershipPolicy ownershipPolicy) {
+		this(consultant, DateFormat.getInstance(), ownershipPolicy);
+	}
+
+	/**
+	 * Creates a new ConsultantConfigurationProvider.
+	 *
+	 * @param consultant      The Consultant to use to retrieve the configuration from Consul, and subscribe to
+	 *                        updates.
+	 * @param dateFormat      A custom DateFormat to use to parse Date's stored in Consul's config.
+	 * @param ownershipPolicy The policy for which this consultant instance holds keys
+	 */
+	public ConsultantConfigurationProvider(Consultant consultant, DateFormat dateFormat,
+			ConfigurationOwnershipPolicy ownershipPolicy) {
 		this.consultant = consultant;
 		this.dateFormat = dateFormat;
+		this.ownershipPolicy = ownershipPolicy;
+
+		ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+		builder.put("serviceName", consultant.getServiceIdentifier().getServiceName());
+		consultant.getServiceIdentifier().getHostName().ifPresent(hostname -> builder.put("hostname", hostname));
+		consultant.getServiceIdentifier().getInstance().ifPresent(instance -> builder.put("instance", instance));
+		consultant.getServiceIdentifier().getDatacenter().ifPresent(dc -> builder.put("dataCenter", dc));
+		variables = builder.build();
 	}
 
 	/**
@@ -167,6 +208,6 @@ public class ConsultantConfigurationProvider extends AbstractObjectConfiguration
 
 	@Override
 	public boolean has(ConfigurationKey key) {
-		return consultant.getProperties().containsKey(key.getRawKey());
+		return ownershipPolicy.has(key, variables);
 	}
 }
