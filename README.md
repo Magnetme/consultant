@@ -4,7 +4,7 @@
 ###### Fetches your service's configuration from Consul, and subscribes to any changes.
 
 ## What's Consultant?
-Consultant is a Java library which allows you service to retrieve its configuration from Consul's Key/Value store. In addition to this, Consultant subscribes to any changes relevant to your service. In addition to reading the configuration from a traditional `Properties` object, you can also use Consultant's integration with Netflix's Governator instead.
+Consultant is a Java library which allows your service to retrieve its configuration from Consul's Key/Value store. In addition to this, Consultant subscribes to any changes relevant to your service. In addition to reading the configuration from a traditional `Properties` object, you can also use Consultant's integration with Netflix's Governator instead.
 
 ## How to use Consultant?
 In order use Consultant, you'll have to create a `Consultant` object first. This can be done using a `Builder`:
@@ -17,7 +17,7 @@ Consultant consultant = Consultant.builder()
 
 With the `identifyAs()` method you tell Consultant the identity of your service. Using this identity the correct configuration can be fetched from Consul's Key/Value store. You must at the very least specify the service's name. You can also optionally specify the name of the datacenter where the service is running, the hostname of the machine the service is running on, and instance name to describe the role of this particular instance.
 
-Alternative you can also define the this identity through environment variables:
+Alternative you can also define this identity through environment variables:
 
 | Environment variable | Corresponds to | Required |
 |:---------------------|:---------------|:---------|
