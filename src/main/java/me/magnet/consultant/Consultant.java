@@ -42,6 +42,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -538,7 +539,8 @@ public class Consultant {
 					return;
 				}
 				log.error("Could not register service, status: " + statusCode);
-				throw new ConsultantException("Could not register service. Consul returned: " + statusCode);
+				String body = EntityUtils.toString(response.getEntity());
+				throw new ConsultantException("Could not register service", new ConsulException(statusCode, body));
 			}
 		}
 		catch (IOException | RuntimeException e) {
@@ -566,7 +568,8 @@ public class Consultant {
 				return;
 			}
 			log.error("Could not deregister service, status: " + statusCode);
-			throw new ConsultantException("Could not deregister service. Consul returned: " + statusCode);
+			String body = EntityUtils.toString(response.getEntity());
+			throw new ConsultantException("Could not deregister service", new ConsulException(statusCode, body));
 		}
 		catch (IOException | RuntimeException e) {
 			registered.set(true);
