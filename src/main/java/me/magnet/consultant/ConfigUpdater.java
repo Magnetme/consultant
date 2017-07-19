@@ -6,6 +6,7 @@ import com.google.common.collect.Maps;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,8 +106,8 @@ class ConfigUpdater implements Runnable {
 						break;
 					default:
 						timeout = 60_000;
-						throw new RuntimeException("Failed to retrieve new config: "
-								+ response.getStatusLine().getReasonPhrase());
+						String body = EntityUtils.toString(response.getEntity());
+						throw new RuntimeException("Failed to retrieve new config", new ConsulException(status, body));
 				}
 			}
 		}

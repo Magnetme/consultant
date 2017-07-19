@@ -12,6 +12,7 @@ import com.google.common.base.Strings;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
 
 /**
  * A class which can be used to retrieve lists of instances or datacenters from Consul over its HTTP API.
@@ -80,7 +81,10 @@ public class ServiceInstanceBackend {
 				InputStream content = response.getEntity().getContent();
 				return objectMapper.readValue(content, new TypeReference<List<ServiceInstance>>() {});
 			}
-			throw new ConsultantException("Could not locate service: " + serviceName + ". Consul returned: " + statusCode);
+
+			String body = EntityUtils.toString(response.getEntity());
+			throw new ConsultantException("Could not locate service: " + serviceName,
+					new ConsulException(statusCode, body));
 		}
 		catch (IOException | RuntimeException e) {
 			throw new ConsultantException(e);
@@ -101,7 +105,8 @@ public class ServiceInstanceBackend {
 				InputStream content = response.getEntity().getContent();
 				return objectMapper.readValue(content, new TypeReference<List<String>>() {});
 			}
-			throw new ConsultantException("Could not locate datacenters. Consul returned: " + statusCode);
+			String body = EntityUtils.toString(response.getEntity());
+			throw new ConsultantException("Could not locate datacenters", new ConsulException(statusCode, body));
 		}
 		catch (IOException | RuntimeException e) {
 			throw new ConsultantException(e);
