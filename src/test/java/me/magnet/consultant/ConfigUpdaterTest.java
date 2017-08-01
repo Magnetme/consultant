@@ -62,7 +62,8 @@ public class ConfigUpdaterTest {
 		when(http.execute(any())).thenReturn(response);
 
 		SettableFuture<Properties> future = SettableFuture.create();
-		ConfigUpdater updater = new ConfigUpdater(executor, http, null, null, id, objectMapper, null, future::set, "some-prefix");
+		ConfigUpdater updater = new ConfigUpdater(
+				executor, http, null, null, id, objectMapper, null, future::set, "some-prefix");
 		updater.run();
 
 		Properties properties = future.get();
@@ -79,14 +80,16 @@ public class ConfigUpdaterTest {
 		CloseableHttpResponse response2 = mock(CloseableHttpResponse.class);
 		when(response2.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1001"));
 		when(response2.getStatusLine()).thenReturn(createStatus(200, "OK"));
-		when(response2.getEntity()).thenReturn(toJson(ImmutableMap.of("some-prefix/oauth/some.key", "some-other-value")));
+		when(response2.getEntity()).thenReturn(
+				toJson(ImmutableMap.of("some-prefix/oauth/some.key", "some-other-value")));
 
 		when(http.execute(any())).thenReturn(response1, response2);
 
 		CountDownLatch latch = new CountDownLatch(2);
 		AtomicReference<Properties> properties = new AtomicReference<>();
 
-		ConfigUpdater updater = new ConfigUpdater(executor, http, null, null, id, objectMapper, null, (config) -> {
+		ConfigUpdater updater = new ConfigUpdater(
+				executor, http, null, null, id, objectMapper, null, (config) -> {
 			latch.countDown();
 			properties.set(config);
 		}, "some-prefix");
@@ -107,7 +110,8 @@ public class ConfigUpdaterTest {
 		when(http.execute(any())).thenReturn(response);
 
 		SettableFuture<Properties> future = SettableFuture.create();
-		ConfigUpdater updater = new ConfigUpdater(executor, http, null, null, id, objectMapper, null, future::set, "some-prefix");
+		ConfigUpdater updater = new ConfigUpdater(
+				executor, http, null, null, id, objectMapper, null, future::set, "some-prefix");
 		updater.run();
 
 		Properties properties = future.get();
@@ -125,7 +129,8 @@ public class ConfigUpdaterTest {
 
 		SettableFuture<Properties> future = SettableFuture.create();
 		id = new ServiceIdentifier("database", null, null, null);
-		ConfigUpdater updater = new ConfigUpdater(executor, http, null, null, id, objectMapper, null, future::set, "some-prefix");
+		ConfigUpdater updater = new ConfigUpdater(
+				executor, http, null, null, id, objectMapper, null, future::set, "some-prefix");
 		updater.run();
 
 		future.get(2000, TimeUnit.MILLISECONDS);
@@ -143,7 +148,8 @@ public class ConfigUpdaterTest {
 
 		SettableFuture<Properties> future = SettableFuture.create();
 		id = new ServiceIdentifier("oauth", null, null, null);
-		ConfigUpdater updater = new ConfigUpdater(executor, http, null, null, id, objectMapper, null, future::set, "some-prefix");
+		ConfigUpdater updater = new ConfigUpdater(
+				executor, http, null, null, id, objectMapper, null, future::set, "some-prefix");
 		updater.run();
 
 		Thread.sleep(5100);
@@ -160,7 +166,8 @@ public class ConfigUpdaterTest {
 		when(http.execute(any())).thenReturn(response1);
 		ScheduledExecutorService executorSpy = spy(executor);
 
-		ConfigUpdater updater = new ConfigUpdater(executor, http, null, null, id, objectMapper, null, null, null);
+		ConfigUpdater updater = new ConfigUpdater(
+				executor, http, null, null, id, objectMapper, null, null, null);
 		updater.run();
 
 		Thread.sleep(1100);

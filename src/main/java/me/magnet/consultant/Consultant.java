@@ -31,7 +31,6 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -54,6 +53,7 @@ public class Consultant {
 
 	private static final int HEALTH_CHECK_INTERVAL = 10;
 	private static final int TERMINATION_TIMEOUT_SECONDS = 5;
+	private ConfigUpdater poller;
 
 	/**
 	 * Allows you to build a custom Consultant object.
@@ -458,6 +458,7 @@ public class Consultant {
 	private final ServiceInstanceBackend serviceInstanceBackend;
 	private final Multimap<String, SettingListener> settingListeners;
 	private final Set<ConfigListener> configListeners;
+	private final AtomicBoolean shutdownBegun = new AtomicBoolean(false);
 
 	private Consultant(ScheduledExecutorService executor, ObjectMapper mapper, URI consulUri,
 			ServiceIdentifier identifier, SetMultimap<String, SettingListener> settingListeners,
@@ -487,7 +488,7 @@ public class Consultant {
 		}
 
 		log.info("Fetching initial configuration from Consul for serviceID: {}", id);
-		ConfigUpdater poller = new ConfigUpdater(executor, http, consulUri, null, id, mapper, null, (properties) -> {
+		poller = new ConfigUpdater(executor, http, consulUri, null, id, mapper, null, (properties) -> {
 			if (validator == null) {
 				updateValidatedConfig(properties);
 			}
@@ -623,7 +624,7 @@ public class Consultant {
 	 * Returns the closest service instance's InetSocketAddress.
 	 *
 	 * @param serviceName The name of the service to locate.
-	 *                       
+	 *
 	 * @return An Optional containing the closest service instance's InetSocketAddress, or an empty Optional otherwise.
 	 */
 	@Deprecated
@@ -693,20 +694,30 @@ public class Consultant {
 			}
 		}
 
-		if (pullConfig && !executor.isShutdown()) {
-			boolean shutDownTasks =
-					MoreExecutors.shutdownAndAwaitTermination(executor, TERMINATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-			if (!shutDownTasks) {
-				log.warn("Could not shut down all executor tasks!");
-			}
+		executor.shutdownNow();
+		shutdownBegun.set(true);
+		if (poller != null) {
+			poller.shutDown();
 		}
-
 		try {
+			/*
+			HTTP client does not have a way to interrupt long-running HTTP calls, so we have to shutdown the whole
+			thing.
+			 */
 			http.close();
 		}
 		catch (IOException | RuntimeException e) {
 			log.error("Error occurred on shutdown: " + e.getMessage(), e);
 		}
+
+		if (pullConfig && !executor.isShutdown()) {
+			boolean allTasksTerminated = executor.awaitTermination(TERMINATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+			if (!allTasksTerminated) {
+				log.warn("Could not shut down all executor tasks!");
+			}
+		}
+
+
 
 	}
 
