@@ -1,15 +1,5 @@
 package me.magnet.consultant;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Maps;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.util.EntityUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -20,9 +10,22 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Maps;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 class ConfigUpdater implements Runnable {
+
 
 	private static class Setting {
 
@@ -56,7 +59,8 @@ class ConfigUpdater implements Runnable {
 	private final Properties config;
 	private final ConfigListener listener;
 	private final String kvPrefix;
-
+	private final AtomicBoolean shutdownBegun = new AtomicBoolean();
+	private final AtomicReference<HttpGet> request = new AtomicReference<>();
 	private String consulIndex;
 
 	ConfigUpdater(ScheduledExecutorService executor, CloseableHttpClient httpClient, URI consulURI,
@@ -76,6 +80,10 @@ class ConfigUpdater implements Runnable {
 
 	@Override
 	public void run() {
+		if (shutdownBegun.get()) {
+			log.info("Not retrieving new config since we're shutting down");
+			return;
+		}
 		long timeout = 500;
 		try {
 			String url = consulURI + "/v1/kv/" + kvPrefix + "/" + identifier.getServiceName() + "/?recurse=true";
@@ -83,14 +91,15 @@ class ConfigUpdater implements Runnable {
 				url += "&index=" + consulIndex;
 			}
 
-			HttpGet request = new HttpGet(url);
-			try (CloseableHttpResponse response = httpClient.execute(request)) {
+			request.set(new HttpGet(url));
+			try (CloseableHttpResponse response = httpClient.execute(request.get())) {
 				Properties newConfig = new Properties();
 				int status = response.getStatusLine().getStatusCode();
 				switch (status) {
 					case 200:
 						InputStream content = response.getEntity().getContent();
-						TypeReference<List<KeyValueEntry>> type = new TypeReference<List<KeyValueEntry>>() {};
+						TypeReference<List<KeyValueEntry>> type = new TypeReference<List<KeyValueEntry>>() {
+						};
 						List<KeyValueEntry> keys = objectMapper.readValue(content, type);
 						newConfig = updateConfig(keys);
 						onNewConfig(newConfig);
@@ -112,14 +121,23 @@ class ConfigUpdater implements Runnable {
 			}
 		}
 		catch (IOException | RuntimeException e) {
+			if (interruptedBecauseShutdown(e)) {
+				return;
+			}
 			log.error("Error occurred while retrieving/publishing new config from Consul: " + e.getMessage(), e);
 		}
 		finally {
-			ConfigUpdater task = new ConfigUpdater(executor, httpClient, consulURI, consulIndex, identifier,
-					objectMapper, config, listener, kvPrefix);
-
-			executor.schedule(task, timeout, TimeUnit.MILLISECONDS);
+			if (!shutdownBegun.get()) {
+				executor.schedule(this, timeout, TimeUnit.MILLISECONDS);
+			}
 		}
+	}
+
+	private boolean interruptedBecauseShutdown(Exception e) {
+		return (e instanceof IllegalStateException
+				&& "Connection pool shut down".equals(e.getMessage())
+				&& shutdownBegun.get())
+				|| e instanceof InterruptedException;
 	}
 
 	private void onNewConfig(Properties newConfig) {
@@ -164,4 +182,21 @@ class ConfigUpdater implements Runnable {
 		return properties;
 	}
 
+	/**
+	 * Shuts down any HTTP calls or scheduled calls to update the config.
+	 */
+	public void shutDown() {
+		shutdownBegun.set(true);
+		request.getAndUpdate(http -> {
+			if (http != null) {
+				try {
+					request.get().abort();
+				}
+				catch (RuntimeException e) {
+					log.error("Could not abort request", e);
+				}
+			}
+			return null;
+		});
+	}
 }
