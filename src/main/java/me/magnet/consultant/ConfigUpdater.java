@@ -185,7 +185,7 @@ class ConfigUpdater implements Runnable {
 	/**
 	 * Shuts down any HTTP calls or scheduled calls to update the config.
 	 */
-	public void shutDown() {
+	public void shutdown() {
 		shutdownBegun.set(true);
 		request.getAndUpdate(http -> {
 			if (http != null) {
@@ -199,4 +199,5 @@ class ConfigUpdater implements Runnable {
 			return null;
 		});
 	}
+
 }

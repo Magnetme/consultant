@@ -697,7 +697,7 @@ public class Consultant {
 		executor.shutdownNow();
 		shutdownBegun.set(true);
 		if (poller != null) {
-			poller.shutDown();
+			poller.shutdown();
 		}
 		try {
 			/*
@@ -716,9 +716,6 @@ public class Consultant {
 				log.warn("Could not shut down all executor tasks!");
 			}
 		}
-
-
-
 	}
 
 	/**
