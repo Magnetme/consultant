@@ -99,7 +99,7 @@ public class ConfigUpdaterTest {
 		assertEquals("some-other-value", properties.get().getProperty("some.key"));
 	}
 
-	@Test(timeout = 5_000)
+	@Test(timeout = 10_000)
 	public void verifyFolderIsIgnored() throws Exception {
 		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
 		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
