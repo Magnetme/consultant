@@ -2,6 +2,7 @@ package me.magnet.consultant;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketException;
 import java.net.URI;
 import java.util.Base64;
 import java.util.List;
@@ -121,7 +122,7 @@ class ConfigUpdater implements Runnable {
 			}
 		}
 		catch (IOException | RuntimeException e) {
-			if (interruptedBecauseShutdown(e)) {
+			if (isShutdownException(e)) {
 				return;
 			}
 			log.error("Error occurred while retrieving/publishing new config from Consul: " + e.getMessage(), e);
@@ -133,11 +134,8 @@ class ConfigUpdater implements Runnable {
 		}
 	}
 
-	private boolean interruptedBecauseShutdown(Exception e) {
-		return (e instanceof IllegalStateException
-				&& "Connection pool shut down".equals(e.getMessage())
-				&& shutdownBegun.get())
-				|| e instanceof InterruptedException;
+	private boolean isShutdownException(Exception e) {
+		return shutdownBegun.get() && (e instanceof SocketException || e instanceof InterruptedException);
 	}
 
 	private void onNewConfig(Properties newConfig) {
