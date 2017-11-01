@@ -34,7 +34,6 @@ import com.google.common.collect.Sets;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.StringEntity;
@@ -561,7 +560,7 @@ public class Consultant {
 		String url = consulUri + "/v1/agent/service/deregister/" + serviceId;
 		log.info("Deregistering service from Consul: {}", id);
 
-		HttpDelete request = new HttpDelete(url);
+		HttpPut request = new HttpPut(url);
 		request.setHeader("User-Agent", "Consultant");
 		try (CloseableHttpResponse response = http.execute(request)) {
 			int statusCode = response.getStatusLine().getStatusCode();
