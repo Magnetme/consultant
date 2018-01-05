@@ -11,6 +11,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -21,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.SettableFuture;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -174,6 +176,29 @@ public class ConfigUpdaterTest {
 
 		Thread.sleep(1100);
 		verify(executorSpy, times(2));
+	}
+
+	@Test(timeout = 10_000)
+	public void verifyKeysWithNullValuesAreIgnored() throws Exception {
+		Map<String, String> entity = Maps.newHashMap();
+		entity.put("config/oauth/non-failing-key", "some-value"); // Just to ensure something valid is loaded.
+		entity.put("config/oauth/failing-key", null);
+
+		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+		when(response.getFirstHeader(eq("X-Consul-Index"))).thenReturn(new BasicHeader("X-Consul-Index", "1000"));
+		when(response.getStatusLine()).thenReturn(createStatus(200, "OK"));
+		when(response.getEntity()).thenReturn(toJson(entity));
+
+		when(http.execute(any())).thenReturn(response);
+
+		SettableFuture<Properties> future = SettableFuture.create();
+		ConfigUpdater updater = new ConfigUpdater(executor, http, null, null, id, objectMapper, null, future::set,
+				"config");
+
+		updater.run();
+
+		Properties properties = future.get();
+		assertEquals(properties.keySet(), Sets.newHashSet("non-failing-key"));
 	}
 
 }
