@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Base64;
 import java.util.Base64.Encoder;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,8 +27,13 @@ public class HttpUtils {
 		Encoder encoder = Base64.getEncoder();
 		try {
 			return new StringEntity("[" + entries.entrySet().stream()
-					.map(entry -> "{\"Key\":\"" + entry.getKey() + "\",\"Value\":\"" + encoder.encodeToString(
-							entry.getValue().getBytes()) + "\"}")
+					.map(entry -> {
+						String value = Optional.ofNullable(entry.getValue())
+								.map(entryValue -> "\"" + encoder.encodeToString(entryValue.getBytes()) + "\"")
+								.orElse("null");
+
+						return "{\"Key\":\"" + entry.getKey() + "\",\"Value\":" + value + "}";
+					})
 					.collect(Collectors.joining(",")) + "]");
 		}
 		catch (IOException e) {

@@ -169,14 +169,23 @@ class ConfigUpdater implements Runnable {
 
 				Setting setting = newConfig.get(settingKey);
 				if (setting == null || id.moreSpecificThan(setting.getIdentifier())) {
-					String stringValue = new String(Base64.getDecoder().decode(entry.getValue()));
+					String stringValue = Optional.ofNullable(entry.getValue())
+							.map(value -> new String(Base64.getDecoder().decode(value)))
+							.orElse(null);
 					newConfig.put(settingKey, new Setting(id, stringValue));
 				}
 			}
 		}
 
 		Properties properties = new Properties();
-		newConfig.forEach((key, value) -> properties.setProperty(key, value.getValue()));
+		newConfig.forEach((key, value) -> {
+			if (value.getValue() == null) {
+				properties.remove(key);
+			}
+			else {
+				properties.setProperty(key, value.getValue());
+			}
+		});
 		return properties;
 	}
 
