@@ -123,6 +123,7 @@ public class Consultant {
 		private String hostname;
 		private String instanceName;
 		private String healthEndpoint;
+		private long whenLocatingServicesCacheResultsFor;
 
 		private URI consulURI;
 
@@ -133,6 +134,7 @@ public class Consultant {
 			this.properties = new Properties();
 			this.pullConfig = true;
 			this.healthEndpoint = "/_health";
+			this.whenLocatingServicesCacheResultsFor = 1_000;
 		}
 
 		/**
@@ -337,6 +339,24 @@ public class Consultant {
 		}
 
 		/**
+		 * Specifies that the results from calls being made to Consul to locate services are being cached for at
+		 * most the specified duration. This is done as to not overload Consul with requests. If you specify a duration
+		 * of 0, caching will effectively be disabled. By default this is set to 1 second, which is good enough to
+		 * mitigate overloading Consul for a high volume of calls, but low enough not to return instances long after
+		 * they've deregistered.
+		 *
+		 * @param duration The duration of time to cache locate call results for.
+		 * @param unit The unit of the specified duration.
+		 * @return The Builder instance.
+		 */
+		public Builder whenLocatingServicesCacheResultsFor(long duration, TimeUnit unit) {
+			checkArgument(duration >= 0, "You must specify a non-negative duration!");
+			checkArgument(unit != null, "You must specify a non-null unit!");
+			this.whenLocatingServicesCacheResultsFor = unit.toMillis(duration);
+			return this;
+		}
+
+		/**
 		 * Builds a new instance of the Consultant class using the specified arguments.
 		 *
 		 * @return The constructed Consultant object.
@@ -414,7 +434,7 @@ public class Consultant {
 
 			ServiceIdentifier id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName);
 			Consultant consultant = new Consultant(executor, mapper, consulURI, id, settingListeners, configListeners,
-                    validator, http, pullConfig, healthEndpoint, kvPrefix);
+                    validator, http, pullConfig, healthEndpoint, kvPrefix, whenLocatingServicesCacheResultsFor);
 
 			consultant.init(properties);
 			return consultant;
@@ -462,12 +482,14 @@ public class Consultant {
 	private Consultant(ScheduledExecutorService executor, ObjectMapper mapper, URI consulUri,
 			ServiceIdentifier identifier, SetMultimap<String, SettingListener> settingListeners,
 			Set<ConfigListener> configListeners, ConfigValidator validator, CloseableHttpClient http,
-			boolean pullConfig, String healthEndpoint, String kvPrefix) {
+			boolean pullConfig, String healthEndpoint, String kvPrefix, long whenLocatingServicesCacheResultsFor) {
 
 		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
 		this.configListeners = Sets.newConcurrentHashSet(configListeners);
-		this.serviceInstanceBackend = new ServiceInstanceBackend(identifier.getDatacenter(), consulUri, mapper, http);
+		this.serviceInstanceBackend = new ServiceInstanceBackend(identifier.getDatacenter(), consulUri, mapper, http,
+				whenLocatingServicesCacheResultsFor);
+
 		this.mapper = mapper;
 		this.validator = validator;
 		this.executor = executor;
