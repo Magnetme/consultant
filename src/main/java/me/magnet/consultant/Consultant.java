@@ -175,17 +175,17 @@ public class Consultant {
 			return this;
 		}
 
-        /**
-         * Allows the caller to specify the prefix when looking up the key value properties. This will default to
-         * {@code config} if not specified.
-         *
-         * @param kvPrefix the path prefix to be used when looking-up the properties.
-         * @return The Builder instance.
-         */
+		/**
+		 * Allows the caller to specify the prefix when looking up the key value properties. This will default to
+		 * {@code config} if not specified.
+		 *
+		 * @param kvPrefix the path prefix to be used when looking-up the properties.
+		 * @return The Builder instance.
+		 */
 		public Builder withKvPrefix(String kvPrefix) {
-            this.kvPrefix = kvPrefix;
-            return this;
-        }
+			this.kvPrefix = kvPrefix;
+			return this;
+		}
 
 		/**
 		 * States the identify of this application. This is used to figure out what configuration settings apply
@@ -208,7 +208,7 @@ public class Consultant {
 		 * value will default to the corresponding value of the Consul agent.
 		 *
 		 * @param serviceName The name of this service.
-		 * @param datacenter The name of the datacenter where this service is running in.
+		 * @param datacenter  The name of the datacenter where this service is running in.
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName, String datacenter) {
@@ -223,8 +223,8 @@ public class Consultant {
 		 * either, these values will default to the corresponding values of the Consul agent.
 		 *
 		 * @param serviceName The name of this service.
-		 * @param datacenter The name of the datacenter where this service is running in.
-		 * @param hostname The name of the host where this service is running on.
+		 * @param datacenter  The name of the datacenter where this service is running in.
+		 * @param hostname    The name of the host where this service is running on.
 		 * @return The Builder instance.
 		 */
 		public Builder identifyAs(String serviceName, String datacenter, String hostname) {
@@ -239,9 +239,9 @@ public class Consultant {
 		 * defined using environment variables either, these values will default to the corresponding values of
 		 * the Consul agent.
 		 *
-		 * @param serviceName The name of this service.
-		 * @param datacenter The name of the datacenter where this service is running in.
-		 * @param hostname The name of the host where this service is running on.
+		 * @param serviceName  The name of this service.
+		 * @param datacenter   The name of the datacenter where this service is running in.
+		 * @param hostname     The name of the host where this service is running on.
 		 * @param instanceName The name/role of this service instance.
 		 * @return The Builder instance.
 		 */
@@ -347,7 +347,7 @@ public class Consultant {
 		 * they've deregistered.
 		 *
 		 * @param duration The duration of time to cache locate call results for.
-		 * @param unit The unit of the specified duration.
+		 * @param unit     The unit of the specified duration.
 		 * @return The Builder instance.
 		 */
 		public Builder whenLocatingServicesCacheResultsFor(long duration, TimeUnit unit) {
@@ -435,7 +435,7 @@ public class Consultant {
 
 			ServiceIdentifier id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName);
 			Consultant consultant = new Consultant(executor, mapper, consulURI, id, settingListeners, configListeners,
-                    validator, http, pullConfig, healthEndpoint, kvPrefix, whenLocatingServicesCacheResultsFor);
+					validator, http, pullConfig, healthEndpoint, kvPrefix, whenLocatingServicesCacheResultsFor);
 
 			consultant.init(properties);
 			return consultant;
@@ -500,7 +500,7 @@ public class Consultant {
 		this.validated = new Properties();
 		this.healthEndpoint = healthEndpoint;
 		this.http = http;
-        this.kvPrefix = kvPrefix;
+		this.kvPrefix = kvPrefix;
 	}
 
 	private void init(Properties initProperties) {
@@ -550,7 +550,8 @@ public class Consultant {
 			String serviceName = id.getServiceName();
 			String serviceHost = id.getHostName().get();
 			Check check = new Check("http://" + serviceHost + ":" + port + healthEndpoint, HEALTH_CHECK_INTERVAL);
-			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, serviceHost, port, check);
+			ServiceRegistration registration =
+					new ServiceRegistration(serviceId, serviceName, serviceHost, port, check);
 			String serialized = mapper.writeValueAsString(registration);
 
 			HttpPut request = new HttpPut(url);
