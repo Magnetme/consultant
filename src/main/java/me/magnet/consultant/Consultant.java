@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -696,7 +697,10 @@ public class Consultant {
 
 			for (SettingListener listener : listeners) {
 				Pair<String, String> change = entry.getValue();
-				listener.onSettingUpdate(key, change.getLeft(), change.getRight());
+				if (!Objects.equals(change.getLeft(), change.getRight())) {
+					// Only fire this for keys which have actually been changed
+					listener.onSettingUpdate(key, change.getLeft(), change.getRight());
+				}
 			}
 		}
 	}
