@@ -624,7 +624,6 @@ public class Consultant {
 	 * the "Randomized Weighted Distance" RoutingStrategy.
 	 *
 	 * @param serviceName The name of the service to locate instances of.
-	 *
 	 * @return The constructed ServiceLocator.
 	 */
 	public ServiceLocator locateAll(String serviceName) {
@@ -636,7 +635,6 @@ public class Consultant {
 	 *
 	 * @param serviceName     The name of the service to locate instances of.
 	 * @param routingStrategy The RoutingStrategy to use to locate instances.
-	 *
 	 * @return The constructed ServiceLocator.
 	 */
 	public ServiceLocator locateAll(String serviceName, RoutingStrategy routingStrategy) {
@@ -647,7 +645,6 @@ public class Consultant {
 	 * Returns the closest service instance's InetSocketAddress.
 	 *
 	 * @param serviceName The name of the service to locate.
-	 *
 	 * @return An Optional containing the closest service instance's InetSocketAddress, or an empty Optional otherwise.
 	 */
 	@Deprecated
@@ -708,6 +705,7 @@ public class Consultant {
 
 	/**
 	 * Tears any outstanding resources down.
+	 *
 	 * @throws InterruptedException If it got interrupted while waiting for any open tasks
 	 */
 	public void shutdown() throws InterruptedException {
