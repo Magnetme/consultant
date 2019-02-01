@@ -4,7 +4,7 @@
 ###### Fetches your service's configuration from Consul, and subscribes to any changes.
 
 ## What's Consultant?
-Consultant is a Java library which allows your service to retrieve its configuration from Consul's Key/Value store. In addition to this, Consultant subscribes to any changes relevant to your service. In addition to reading the configuration from a traditional `Properties` object, you can also use Consultant's integration with Netflix's Governator instead.
+Consultant is a Java library which allows your service to retrieve its configuration from Consul's Key/Value store. In addition to this, Consultant subscribes to any changes relevant to your service.
 
 ## How to use Consultant?
 In order use Consultant, you'll have to create a `Consultant` object first. This can be done using a `Builder`:

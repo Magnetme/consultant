@@ -67,12 +67,6 @@
 			<version>3.3.2</version>
 		</dependency>
 		<dependency>
-			<groupId>com.netflix.governator</groupId>
-			<artifactId>governator</artifactId>
-			<version>1.10.5</version>
-			<optional>true</optional>
-		</dependency>
-		<dependency>
 			<groupId>com.google.guava</groupId>
 			<artifactId>guava</artifactId>
 			<version>18.0</version>
