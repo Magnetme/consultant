@@ -49,18 +49,21 @@ public abstract class RoutingStrategyTest {
 		Service service2 = createService(SERVICE_2);
 		Service service3 = createService(SERVICE_3);
 
-		this.dc1node1service1 = new ServiceInstance(dc1node1, service1);
-		this.dc1node2service1 = new ServiceInstance(dc1node2, service1);
-		this.dc1node3service1 = new ServiceInstance(dc1node3, service1);
-		this.dc2node1service1 = new ServiceInstance(dc2node1, service1);
+		CheckStatus passing = new CheckStatus("Serf test", "All is OK", "passing");
+		List<CheckStatus> checks = Lists.newArrayList(passing);
 
-		this.dc1node1service2 = new ServiceInstance(dc1node1, service2);
-		this.dc1node2service2 = new ServiceInstance(dc1node2, service2);
-		this.dc1node3service2 = new ServiceInstance(dc1node3, service2);
+		this.dc1node1service1 = new ServiceInstance(dc1node1, service1, checks);
+		this.dc1node2service1 = new ServiceInstance(dc1node2, service1, checks);
+		this.dc1node3service1 = new ServiceInstance(dc1node3, service1, checks);
+		this.dc2node1service1 = new ServiceInstance(dc2node1, service1, checks);
 
-		this.dc1node1service3 = new ServiceInstance(dc1node1, service3);
-		this.dc1node2service3 = new ServiceInstance(dc1node2, service3);
-		this.dc1node3service3 = new ServiceInstance(dc1node3, service3);
+		this.dc1node1service2 = new ServiceInstance(dc1node1, service2, checks);
+		this.dc1node2service2 = new ServiceInstance(dc1node2, service2, checks);
+		this.dc1node3service2 = new ServiceInstance(dc1node3, service2, checks);
+
+		this.dc1node1service3 = new ServiceInstance(dc1node1, service3, checks);
+		this.dc1node2service3 = new ServiceInstance(dc1node2, service3, checks);
+		this.dc1node3service3 = new ServiceInstance(dc1node3, service3, checks);
 
 		this.serviceInstanceBackend = mock(ServiceInstanceBackend.class);
 		when(serviceInstanceBackend.listInstances(anyString())).thenAnswer(invocation -> {
