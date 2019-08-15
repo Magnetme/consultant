@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,6 +23,8 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A class which can be used to retrieve lists of instances or datacenters from Consul over its HTTP API.
@@ -73,6 +76,10 @@ public class ServiceInstanceBackend {
 
 	}
 
+	private static final Logger log = LoggerFactory.getLogger(ConfigUpdater.class);
+
+	private static final TypeReference<List<ServiceInstance>> TYPES = new TypeReference<List<ServiceInstance>>() {};
+
 	private final Optional<String> datacenter;
 	private final LoadingCache<ServiceIdentifierCacheKey, List<ServiceInstance>> serviceInstances;
 	private final Supplier<List<String>> datacenters;
@@ -95,7 +102,7 @@ public class ServiceInstanceBackend {
 		this.serviceInstances = CacheBuilder.newBuilder()
 				.expireAfterWrite(cacheLocateCallsForMillis, TimeUnit.MILLISECONDS)
 				.build(CacheLoader.from(key -> {
-					String url = consulUri + "/v1/health/service/" + key.getServiceName() + "?passing&near=_agent";
+					String url = consulUri + "/v1/health/service/" + key.getServiceName() + "?near=_agent";
 					if (!Strings.isNullOrEmpty(key.getDatacenter())) {
 						url += "&dc=" + key.getDatacenter();
 					}
@@ -106,8 +113,47 @@ public class ServiceInstanceBackend {
 						int statusCode = response.getStatusLine().getStatusCode();
 						if (statusCode >= 200 && statusCode < 400) {
 							InputStream content = response.getEntity().getContent();
-							return objectMapper.readValue(content, new TypeReference<List<ServiceInstance>>() {
-							});
+							List<ServiceInstance> allInstances = objectMapper.readValue(content, TYPES);
+
+							List<ServiceInstance> passingInstances = allInstances.stream()
+									.filter(instance -> instance.getChecks().stream()
+											.allMatch(checkStatus -> "passing".equals(checkStatus.getStatus())))
+									.collect(Collectors.toList());
+
+							/*
+							 * If there are known instances matching the specified service name, but they all have at
+							 * least one failing health check (making them unavailable), log this so it's obvious to
+							 * whoever is debugging such issues.
+							 */
+							if (passingInstances.isEmpty() && !allInstances.isEmpty()) {
+								StringBuilder builder = new StringBuilder();
+								builder.append("None of the known instances are passing all of their checks: \n");
+
+								for (ServiceInstance instance : allInstances) {
+									String name = instance.getService().getService();
+									String nodeName = instance.getNode().getNode();
+
+									builder.append("\tService \"")
+											.append(name)
+											.append("\" on node \"")
+											.append(nodeName)
+											.append("\":\n");
+
+									for (CheckStatus checkStatus : instance.getChecks()) {
+										builder.append("\t\t- Check \"")
+												.append(checkStatus.getName())
+												.append("\" has status \"")
+												.append(checkStatus.getStatus())
+												.append("\" with output: ")
+												.append(checkStatus.getOutput())
+												.append("\n");
+									}
+								}
+
+								log.warn(builder.toString());
+							}
+
+							return passingInstances;
 						}
 
 						String body = EntityUtils.toString(response.getEntity());
