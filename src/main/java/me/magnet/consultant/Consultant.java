@@ -293,6 +293,7 @@ public class Consultant {
 		/**
 		 * Specifies a callback listener which is notified of whenever the specified setting is updated.
 		 *
+		 * @param key The key of the setting to listen for.
 		 * @param listener The listener to call when the specified setting is updated.
 		 * @return The Builder instance.
 		 */
@@ -605,8 +606,10 @@ public class Consultant {
 	/**
 	 * Lists all service instances of a particular service known to Consul ordered by network distance. This method is
 	 * scheduled for removal in the next major release. Avoid this method if possible due to possible performance
-	 * issues
-	 * when having a multi datacenter Consul cluster. Use the locateAll() method instead.
+	 * issues when having a multi datacenter Consul cluster. Use the locateAll() method instead.
+	 *
+	 * @param serviceName The name of the service to locate instances of.
+	 * @return A List of ServiceInstance objects.
 	 */
 	@Deprecated
 	public List<ServiceInstance> list(String serviceName) {

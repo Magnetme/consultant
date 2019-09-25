@@ -28,7 +28,6 @@ public class PathTest {
 	@Test
 	public void verifyEqualsMethod() {
 		EqualsVerifier.forClass(Path.class)
-				.allFieldsShouldBeUsed()
 				.suppress(Warning.STRICT_INHERITANCE)
 				.verify();
 	}

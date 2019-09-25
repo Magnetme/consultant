@@ -141,7 +141,6 @@ public class ServiceIdentifierTest {
 	@Test
 	public void verifyEqualsMethod() {
 		EqualsVerifier.forClass(ServiceIdentifier.class)
-				.allFieldsShouldBeUsed()
 				.suppress(Warning.STRICT_INHERITANCE)
 				.verify();
 	}
