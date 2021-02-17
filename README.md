@@ -1,4 +1,4 @@
-[![Magnet.me Logo](https://cdn.magnet.me/images/logo-2015-full.svg)](https://magnet.me?ref=github-consultant "Discover the best companies, jobs and internships at Magnet.me")
+[![Magnet.me Logo](https://cdn.magnet.me/images/logo-2015-full.svg)](https://magnet.me "Discover the best companies, jobs and internships at Magnet.me")
 
 # Consultant
 ###### Fetches your service's configuration from Consul, and subscribes to any changes.
