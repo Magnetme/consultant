@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
@@ -115,6 +116,7 @@ public class Consultant {
 		private final Set<ConfigListener> configListeners;
 
 		private String host;
+		private String token;
 		private Properties properties;
 		private boolean pullConfig;
 
@@ -172,6 +174,18 @@ public class Consultant {
 		 */
 		public Builder withConsulHost(String host) {
 			this.host = host;
+			return this;
+		}
+
+		/**
+		 * Specifies that a token must be set using the <code>X-Consul-Token</code> header to authenticate requests
+		 * directed at Consul with.
+		 *
+		 * @param token The token to use when talking to Consul.
+		 * @return The Builder instance
+		 */
+		public Builder withConsulToken(String token) {
+			this.token = token;
 			return this;
 		}
 
@@ -418,7 +432,12 @@ public class Consultant {
 						.build();
 			}
 
-			try (CloseableHttpResponse response = http.execute(new HttpGet(consulURI + "/v1/agent/self"))) {
+			HttpGet request = new HttpGet(consulURI + "/v1/agent/self");
+			if (!Strings.isNullOrEmpty(token)) {
+				request.setHeader("X-Consul-Token", token);
+			}
+
+			try (CloseableHttpResponse response = http.execute(request)) {
 				HttpEntity entity = response.getEntity();
 				Agent agent = mapper.readValue(entity.getContent(), Agent.class);
 				Config config = agent.getConfig();
@@ -435,8 +454,9 @@ public class Consultant {
 			}
 
 			ServiceIdentifier id = new ServiceIdentifier(serviceName, datacenter, hostname, instanceName);
-			Consultant consultant = new Consultant(executor, mapper, consulURI, id, settingListeners, configListeners,
-					validator, http, pullConfig, healthEndpoint, kvPrefix, whenLocatingServicesCacheResultsFor);
+			Consultant consultant = new Consultant(executor, mapper, consulURI, token, id, settingListeners,
+					configListeners, validator, http, pullConfig, healthEndpoint, kvPrefix,
+					whenLocatingServicesCacheResultsFor);
 
 			consultant.init(properties);
 			return consultant;
@@ -468,6 +488,7 @@ public class Consultant {
 	private final CloseableHttpClient http;
 	private final ScheduledExecutorService executor;
 	private final URI consulUri;
+	private final String token;
 	private final ServiceIdentifier id;
 	private final ObjectMapper mapper;
 	private final ConfigValidator validator;
@@ -481,7 +502,7 @@ public class Consultant {
 	private final Set<ConfigListener> configListeners;
 	private final AtomicBoolean shutdownBegun = new AtomicBoolean(false);
 
-	private Consultant(ScheduledExecutorService executor, ObjectMapper mapper, URI consulUri,
+	private Consultant(ScheduledExecutorService executor, ObjectMapper mapper, URI consulUri, String token,
 			ServiceIdentifier identifier, SetMultimap<String, SettingListener> settingListeners,
 			Set<ConfigListener> configListeners, ConfigValidator validator, CloseableHttpClient http,
 			boolean pullConfig, String healthEndpoint, String kvPrefix, long whenLocatingServicesCacheResultsFor) {
@@ -489,13 +510,14 @@ public class Consultant {
 		this.registered = new AtomicBoolean();
 		this.settingListeners = Multimaps.synchronizedSetMultimap(settingListeners);
 		this.configListeners = Sets.newConcurrentHashSet(configListeners);
-		this.serviceInstanceBackend = new ServiceInstanceBackend(identifier.getDatacenter(), consulUri, mapper, http,
-				whenLocatingServicesCacheResultsFor);
+		this.serviceInstanceBackend = new ServiceInstanceBackend(identifier.getDatacenter(), consulUri, token,
+				mapper, http, whenLocatingServicesCacheResultsFor);
 
 		this.mapper = mapper;
 		this.validator = validator;
 		this.executor = executor;
 		this.consulUri = consulUri;
+		this.token = token;
 		this.id = identifier;
 		this.pullConfig = pullConfig;
 		this.validated = new Properties();
@@ -511,7 +533,7 @@ public class Consultant {
 		}
 
 		log.info("Fetching initial configuration from Consul for serviceID: {}", id);
-		poller = new ConfigUpdater(executor, http, consulUri, null, id, mapper, null, (properties) -> {
+		poller = new ConfigUpdater(executor, http, consulUri, token, null, id, mapper, null, properties -> {
 			if (validator == null) {
 				updateValidatedConfig(properties);
 			}
@@ -551,13 +573,17 @@ public class Consultant {
 			String serviceName = id.getServiceName();
 			String serviceHost = id.getHostName().get();
 			Check check = new Check("http://" + serviceHost + ":" + port + healthEndpoint, HEALTH_CHECK_INTERVAL);
-			ServiceRegistration registration =
-					new ServiceRegistration(serviceId, serviceName, serviceHost, port, check);
+			ServiceRegistration registration = new ServiceRegistration(serviceId, serviceName, serviceHost,
+					port, check);
 			String serialized = mapper.writeValueAsString(registration);
 
 			HttpPut request = new HttpPut(url);
 			request.setEntity(new StringEntity(serialized));
 			request.setHeader("User-Agent", "Consultant");
+			if (!Strings.isNullOrEmpty(token)) {
+				request.setHeader("X-Consul-Token", token);
+			}
+
 			try (CloseableHttpResponse response = http.execute(request)) {
 				int statusCode = response.getStatusLine().getStatusCode();
 				if (statusCode >= 200 && statusCode < 400) {
@@ -587,6 +613,10 @@ public class Consultant {
 
 		HttpPut request = new HttpPut(url);
 		request.setHeader("User-Agent", "Consultant");
+		if (!Strings.isNullOrEmpty(token)) {
+			request.setHeader("X-Consul-Token", token);
+		}
+
 		try (CloseableHttpResponse response = http.execute(request)) {
 			int statusCode = response.getStatusLine().getStatusCode();
 			if (statusCode >= 200 && statusCode < 400) {

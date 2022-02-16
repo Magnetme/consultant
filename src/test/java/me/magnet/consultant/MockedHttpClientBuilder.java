@@ -18,19 +18,19 @@ import org.mockito.Mockito;
 
 public class MockedHttpClientBuilder {
 
-	private final Table<String, Class<? extends HttpRequestBase>, Function<HttpRequestBase, CloseableHttpResponse>> handlers;
+	private final Table<String, String, Function<HttpRequestBase, CloseableHttpResponse>> handlers;
 
 	MockedHttpClientBuilder() {
 		this.handlers = HashBasedTable.create();
 	}
 
 	public MockedHttpClientBuilder onGet(String path, Function<HttpGet, CloseableHttpResponse> consumer) {
-		handlers.put(path, HttpGet.class, request -> consumer.apply((HttpGet) request));
+		handlers.put(path, "GET", request -> consumer.apply((HttpGet) request));
 		return this;
 	}
 
 	public MockedHttpClientBuilder onPost(String path, Function<HttpPost, CloseableHttpResponse> consumer) {
-		handlers.put(path, HttpPost.class, request -> consumer.apply((HttpPost) request));
+		handlers.put(path, "POST", request -> consumer.apply((HttpPost) request));
 		return this;
 	}
 
@@ -46,7 +46,7 @@ public class MockedHttpClientBuilder {
 				path += "?" + uri.getRawQuery();
 			}
 
-			Function<HttpRequestBase, CloseableHttpResponse> handler = handlers.get(path, argument.getClass());
+			Function<HttpRequestBase, CloseableHttpResponse> handler = handlers.get(path, argument.getMethod());
 			if (handler == null) {
 				throw new UnsupportedOperationException("No support for type: " + argument.getClass().getSimpleName()
 						+ " and path: " + path);
