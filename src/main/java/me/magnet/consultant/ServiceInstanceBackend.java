@@ -90,11 +90,12 @@ public class ServiceInstanceBackend {
 	 *
 	 * @param datacenter   The datacenter as it is defined in the ServiceIdentifier.
 	 * @param consulUri    The URI where Consul's API can be found.
+	 * @param token        An optional token to be used to authenticate requests directed at Consul's API.
 	 * @param objectMapper The ObjectMapper which can be used to deserialize JSON.
 	 * @param http         The HTTP client to use.
 	 * @param cacheLocateCallsForMillis How long the results of locate calls should be cached for.
 	 */
-	ServiceInstanceBackend(Optional<String> datacenter, URI consulUri, ObjectMapper objectMapper,
+	ServiceInstanceBackend(Optional<String> datacenter, URI consulUri, String token, ObjectMapper objectMapper,
 			CloseableHttpClient http, long cacheLocateCallsForMillis) {
 
 		this.datacenter = datacenter;
@@ -109,6 +110,10 @@ public class ServiceInstanceBackend {
 
 					HttpGet request = new HttpGet(url);
 					request.setHeader("User-Agent", "Consultant");
+					if (!Strings.isNullOrEmpty(token)) {
+						request.setHeader("X-Consul-Token", token);
+					}
+
 					try (CloseableHttpResponse response = http.execute(request)) {
 						int statusCode = response.getStatusLine().getStatusCode();
 						if (statusCode >= 200 && statusCode < 400) {
@@ -170,6 +175,10 @@ public class ServiceInstanceBackend {
 
 			HttpGet request = new HttpGet(url);
 			request.setHeader("User-Agent", "Consultant");
+			if (!Strings.isNullOrEmpty(token)) {
+				request.setHeader("X-Consul-Token", token);
+			}
+
 			try (CloseableHttpResponse response = http.execute(request)) {
 				int statusCode = response.getStatusLine().getStatusCode();
 				if (statusCode >= 200 && statusCode < 400) {

@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -55,6 +56,7 @@ class ConfigUpdater implements Runnable {
 	private final CloseableHttpClient httpClient;
 	private final ScheduledExecutorService executor;
 	private final URI consulURI;
+	private final String token;
 	private final ServiceIdentifier identifier;
 	private final ObjectMapper objectMapper;
 	private final Properties config;
@@ -64,7 +66,7 @@ class ConfigUpdater implements Runnable {
 	private final AtomicReference<HttpGet> request = new AtomicReference<>();
 	private String consulIndex;
 
-	ConfigUpdater(ScheduledExecutorService executor, CloseableHttpClient httpClient, URI consulURI,
+	ConfigUpdater(ScheduledExecutorService executor, CloseableHttpClient httpClient, URI consulURI, String token,
 			String consulIndex, ServiceIdentifier identifier, ObjectMapper objectMapper,
 			Properties config, ConfigListener listener, String kvPrefix) {
 
@@ -73,6 +75,7 @@ class ConfigUpdater implements Runnable {
 		this.objectMapper = objectMapper;
 		this.executor = executor;
 		this.consulURI = consulURI;
+		this.token = token;
 		this.identifier = identifier;
 		this.listener = listener;
 		this.config = Optional.ofNullable(config).orElse(new Properties());
@@ -92,7 +95,12 @@ class ConfigUpdater implements Runnable {
 				url += "&index=" + consulIndex;
 			}
 
-			request.set(new HttpGet(url));
+			request.set(new HttpGet(url) {{
+				if (!Strings.isNullOrEmpty(token)) {
+					setHeader("X-Consul-Token", token);
+				}
+			}});
+
 			try (CloseableHttpResponse response = httpClient.execute(request.get())) {
 				Properties newConfig = new Properties();
 				int status = response.getStatusLine().getStatusCode();
