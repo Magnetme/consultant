@@ -54,7 +54,7 @@ public class Consultant {
 
 	private static final int HEALTH_CHECK_INTERVAL = 10;
 	private static final int TERMINATION_TIMEOUT_SECONDS = 5;
-	private ConfigUpdater poller;
+	static final String CONFIG_PREFIX = "config";
 
 	/**
 	 * Allows you to build a custom Consultant object.
@@ -307,7 +307,7 @@ public class Consultant {
 		/**
 		 * Specifies a callback listener which is notified of whenever the specified setting is updated.
 		 *
-		 * @param key The key of the setting to listen for.
+		 * @param key      The key of the setting to listen for.
 		 * @param listener The listener to call when the specified setting is updated.
 		 * @return The Builder instance.
 		 */
@@ -496,6 +496,8 @@ public class Consultant {
 	private final boolean pullConfig;
 	private final String healthEndpoint;
 	private final String kvPrefix;
+	private final ConfigWriter configWriter;
+	private ConfigUpdater poller;
 
 	private final ServiceInstanceBackend serviceInstanceBackend;
 	private final Multimap<String, SettingListener> settingListeners;
@@ -523,6 +525,7 @@ public class Consultant {
 		this.validated = new Properties();
 		this.healthEndpoint = healthEndpoint;
 		this.http = http;
+		this.configWriter = new ConfigWriter(http, consulUri, token, kvPrefix);
 		this.kvPrefix = kvPrefix;
 	}
 
@@ -707,6 +710,30 @@ public class Consultant {
 
 	public boolean removeSettingListener(String key, SettingListener listener) {
 		return settingListeners.remove(key, listener);
+	}
+
+	/**
+	 * Updates a config in Consul's KV store.
+	 *
+	 * @param key   The key to set/update/delete.
+	 * @param value The new value for the key. Specifying a NULL will delete it.
+	 * @return True if the change was successful.
+	 */
+	public boolean setConfig(String key, String value) {
+		return setConfig(new ServiceIdentifier(id.getServiceName(), null, null, null), key, value);
+	}
+
+	/**
+	 * Updates a config in Consul's KV store.
+	 *
+	 * @param identifier A qualifier for which this update should apply. Use this if you wish to limit the
+	 *                   config update to a specific datacenter, host, or instance.
+	 * @param key        The key to set/update/delete.
+	 * @param value      The new value for the key. Specifying a NULL will delete it.
+	 * @return True if the change was successful.
+	 */
+	public boolean setConfig(ServiceIdentifier identifier, String key, String value) {
+		return configWriter.setConfig(identifier, key, value);
 	}
 
 	private void updateValidatedConfig(Properties newConfig) {

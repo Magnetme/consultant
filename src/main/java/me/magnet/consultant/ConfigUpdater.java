@@ -1,5 +1,7 @@
 package me.magnet.consultant;
 
+import static me.magnet.consultant.Consultant.CONFIG_PREFIX;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketException;
@@ -28,7 +30,6 @@ import org.slf4j.LoggerFactory;
 
 class ConfigUpdater implements Runnable {
 
-
 	private static class Setting {
 
 		private final ServiceIdentifier identifier;
@@ -50,8 +51,6 @@ class ConfigUpdater implements Runnable {
 	}
 
 	private static final Logger log = LoggerFactory.getLogger(ConfigUpdater.class);
-
-	private static final String PREFIX = "config";
 
 	private final CloseableHttpClient httpClient;
 	private final ScheduledExecutorService executor;
@@ -79,7 +78,7 @@ class ConfigUpdater implements Runnable {
 		this.identifier = identifier;
 		this.listener = listener;
 		this.config = Optional.ofNullable(config).orElse(new Properties());
-		this.kvPrefix = Optional.ofNullable(kvPrefix).orElse(PREFIX);
+		this.kvPrefix = Optional.ofNullable(kvPrefix).orElse(CONFIG_PREFIX);
 	}
 
 	@Override
