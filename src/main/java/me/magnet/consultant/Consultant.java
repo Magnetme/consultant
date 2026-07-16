@@ -52,7 +52,7 @@ import org.slf4j.LoggerFactory;
  */
 public class Consultant {
 
-	private static final int HEALTH_CHECK_INTERVAL = 10;
+	private static final String HEALTH_CHECK_INTERVAL = "10s";
 	private static final int TERMINATION_TIMEOUT_SECONDS = 5;
 	static final String CONFIG_PREFIX = "config";
 

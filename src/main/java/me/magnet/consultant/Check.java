@@ -10,9 +10,9 @@ public class Check {
 	private final String http;
 
 	@JsonProperty("Interval")
-	private final Integer interval;
+	private final String interval;
 
-	Check(String http, Integer interval) {
+	Check(String http, String interval) {
 		this.http = http;
 		this.interval = interval;
 	}
