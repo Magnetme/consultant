@@ -357,9 +357,10 @@ public class Consultant {
 		/**
 		 * Specifies that the results from calls being made to Consul to locate services are being cached for at
 		 * most the specified duration. This is done as to not overload Consul with requests. If you specify a duration
-		 * of 0, caching will effectively be disabled. By default this is set to 1 second, which is good enough to
+		 * of 0, normal result caching will effectively be disabled. By default this is set to 1 second, which is good enough to
 		 * mitigate overloading Consul for a high volume of calls, but low enough not to return instances long after
-		 * they've deregistered.
+		 * they've deregistered. If a refresh fails, the last successful service instance result can still be
+		 * reused for up to 15 seconds after it was fetched, regardless of this setting.
 		 *
 		 * @param duration The duration of time to cache locate call results for.
 		 * @param unit     The unit of the specified duration.
